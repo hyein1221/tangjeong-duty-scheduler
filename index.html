@@ -98,26 +98,35 @@ let currentSchedule = [];
 let currentStats = [];
 
 const slots = [
-{key:"m1", label:"햇빛", hours:2, part:"morning"},
-{key:"m2", label:"달빛", hours:1.5, part:"morning"},
-{key:"m3", label:"달빛", hours:1, part:"morning"},
-{key:"m4", label:"봄빛", hours:2, part:"morning"},
-{key:"m5", label:"예빛", hours:1.5, part:"morning"},
-{key:"m6", label:"예빛", hours:1, part:"morning"},
-{key:"m7", label:"새빛", hours:2, part:"morning"},
-{key:"m8", label:"새빛", hours:1, part:"morning"},
-{key:"m9", label:"새빛 탄력", hours:0, part:"morning"},
-{key:"m10", label:"꽃빛", hours:1.5, part:"morning"},
-{key:"m11", label:"윤빛", hours:1.5, part:"morning"},
-{key:"m12", label:"솔빛", hours:1, part:"morning"},
-{key:"m13", label:"들빛 탄력", hours:0, part:"morning"},
-{key:"m14", label:"오전책임", hours:2, part:"morning"},
-{key:"m15", label:"놀이터", hours:1.5, part:"morning"},
-{key:"m16", label:"2층시건", hours:2, part:"morning"},
-{key:"a1", label:"오후통합", hours:1, part:"afternoon"},
-{key:"a2", label:"오후책임", hours:2, part:"afternoon"}
-];
+  {key:"m1", group:"영아", age:"만1세", room:"햇빛", time:"07:00~09:00<br>(2h)", role:"1층 시건", hours:2, part:"morning"},
+  {key:"m2", group:"영아", age:"만1세", room:"햇빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터 시건", hours:1.5, part:"morning"},
 
+  {key:"m3", group:"영아", age:"만1세", room:"달빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning"},
+  {key:"m4", group:"영아", age:"만1세", room:"달빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning"},
+  {key:"m5", group:"영아", age:"만1세", room:"달빛", time:"08:30~17:30", role:"탄력", hours:0, part:"morning"},
+
+  {key:"m6", group:"영아", age:"만2세", room:"봄빛", time:"07:00~09:00<br>(2h)", role:"오전책임교사", hours:2, part:"morning"},
+  {key:"m7", group:"영아", age:"만2세", room:"봄빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning"},
+  {key:"m8", group:"영아", age:"만2세", room:"봄빛", time:"08:30~17:30", role:"탄력", hours:0, part:"morning"},
+
+  {key:"m9", group:"영아", age:"만2세", room:"예빛", time:"08:00~09:00<br>(1h)", role:"8:30까지 봄빛 보육 후 분반", hours:1, part:"morning"},
+
+  {key:"m10", group:"유아", age:"만3세", room:"새빛", time:"07:00~09:00<br>(2h)", role:"2층 시건", hours:2, part:"morning"},
+  {key:"m11", group:"유아", age:"만3세", room:"새빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning"},
+  {key:"m12", group:"유아", age:"만3세", room:"새빛", time:"08:30~17:30", role:"탄력", hours:0, part:"morning"},
+
+  {key:"m13", group:"유아", age:"만4세", room:"꽃빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning"},
+
+  {key:"m14", group:"유아", age:"만4세", room:"윤빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터<br>8:30까지 2세 봄빛 지원", hours:1.5, part:"morning"},
+
+  {key:"m15", group:"유아", age:"만5세", room:"솔빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning"},
+
+  {key:"m16", group:"유아", age:"만5세", room:"들빛", time:"08:30~17:30", role:"탄력", hours:0, part:"morning"},
+
+  {key:"a1", group:"오후", age:"통합", room:"통합", time:"18:00~19:00<br>(1h)", role:"18:30부터 빨래정리<br>1·2층 전체 시건", hours:1, part:"afternoon"},
+
+  {key:"a2", group:"오후", age:"통합", room:"통합", time:"18:00~20:00<br>(2h)", role:"오후책임교사", hours:2, part:"afternoon"}
+];
 window.onload = function(){
 document.getElementById("teacherInput").value = localStorage.getItem("teachers") || DEFAULT_TEACHERS;
 updateTeacherSelect();
@@ -297,28 +306,43 @@ renderStats(teachers);
 function renderSchedule(rows){
 let html = `<table id="scheduleTable">
 <tr>
-<th rowspan="3">일</th>
-<th rowspan="3">요일</th>
+<th rowspan="5">일</th>
+<th rowspan="5">요일</th>
 <th colspan="16">오전</th>
 <th colspan="2">오후</th>
 </tr>
+
 <tr>
-<th colspan="3">만1세</th>
-<th colspan="3">만2세</th>
+<th colspan="9">영아</th>
+<th colspan="7">유아</th>
+<th colspan="2">통합</th>
+</tr>
+
+<tr>
+<th colspan="5">만1세</th>
+<th colspan="4">만2세</th>
 <th colspan="3">만3세</th>
 <th colspan="2">만4세</th>
 <th colspan="2">만5세</th>
-<th colspan="3">통합</th>
 <th colspan="2">통합</th>
 </tr>
+
 <tr>
-<th>햇빛</th><th>달빛</th><th>달빛</th>
-<th>봄빛</th><th>예빛</th><th>예빛</th>
-<th>새빛</th><th>새빛</th><th>탄력</th>
-<th>꽃빛</th><th>윤빛</th>
-<th>솔빛</th><th>들빛</th>
-<th>오전책임</th><th>놀이터</th><th>2층시건</th>
-<th>오후통합</th><th>오후책임</th>
+<th colspan="2">햇빛</th>
+<th colspan="3">달빛</th>
+<th colspan="3">봄빛</th>
+<th>예빛</th>
+<th colspan="3">새빛</th>
+<th>꽃빛</th>
+<th>윤빛</th>
+<th>솔빛</th>
+<th>들빛</th>
+<th>18:00~19:00</th>
+<th>18:00~20:00</th>
+</tr>
+
+<tr>
+${slots.map(s=>`<th>${s.time}<br>${s.role}</th>`).join("")}
 </tr>`;
 
 rows.forEach(r=>{
@@ -332,7 +356,6 @@ ${slots.map(s=>`<td>${r[s.key] || ""}</td>`).join("")}
 html += `</table>`;
 scheduleResult.innerHTML = html;
 }
-
 function ageOrder(age){
 return {"만1세":1,"만2세":2,"만3세":3,"만4세":4,"만5세":5}[age] || 99;
 }

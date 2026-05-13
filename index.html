@@ -320,6 +320,10 @@ return dates;
 function chooseTeacher(teachers, slot, dateStr){
 const unavailable = leaves.filter(l=>l.date===dateStr).map(l=>l.teacher);
 
+const alreadyAssignedToday = teachers.filter(t =>
+  t.assignedDates.includes(dateStr)
+);
+
 const candidates = teachers.filter(t=>{
 if(unavailable.includes(t.name)) return false;
 if(t.assignedDates.includes(dateStr)) return false;
@@ -328,11 +332,29 @@ return true;
 
 if(candidates.length===0) return null;
 
-candidates.sort((a,b)=>a.totalHours - b.totalHours);
+candidates.sort((a,b)=>{
+let aScore = a.totalHours;
+let bScore = b.totalHours;
+
+/* 같은 반 교사가 이미 같은 날 배정되어 있으면 뒤로 밀기 */
+const aSameRoomToday = alreadyAssignedToday.some(x => x.room === a.room);
+const bSameRoomToday = alreadyAssignedToday.some(x => x.room === b.room);
+
+if(aSameRoomToday) aScore += 3;
+if(bSameRoomToday) bScore += 3;
+
+/* 같은 연령 교사도 너무 몰리지 않도록 약하게 조정 */
+const aSameAgeToday = alreadyAssignedToday.some(x => x.age === a.age);
+const bSameAgeToday = alreadyAssignedToday.some(x => x.age === b.age);
+
+if(aSameAgeToday) aScore += 1;
+if(bSameAgeToday) bScore += 1;
+
+return aScore - bScore;
+});
 
 return candidates[0];
 }
-
 function generateSchedule(){
 const monthValue = monthInput.value;
 if(!monthValue){alert("월 선택 필요"); return;}

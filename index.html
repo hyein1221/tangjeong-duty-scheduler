@@ -4,91 +4,181 @@
   <meta charset="UTF-8" />
   <title>탕정삼성어린이집 당직표 생성기</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 30px; background:#f7f8fa; }
-    h1 { margin-bottom: 10px; }
-    .box { background:white; padding:20px; margin-bottom:20px; border-radius:12px; box-shadow:0 2px 8px #ddd; }
-    textarea, input, select, button { padding:10px; margin:5px 0; }
-    textarea { width:100%; height:120px; }
-    button { cursor:pointer; border:0; border-radius:8px; background:#2f6fed; color:white; font-weight:bold; }
-    table { width:100%; border-collapse:collapse; background:white; margin-top:15px; }
-    th, td { border:1px solid #ccc; padding:8px; text-align:center; font-size:14px; }
+    body { font-family: Arial, sans-serif; margin: 24px; background:#f6f7fb; color:#222; }
+    .header { display:flex; align-items:center; gap:16px; margin-bottom:20px; }
+    .logo { width:70px; height:70px; object-fit:contain; }
+    h1 { margin:0; font-size:28px; }
+    .contact { color:#555; margin-top:6px; }
+    .box { background:white; padding:18px; margin-bottom:18px; border-radius:14px; box-shadow:0 2px 10px #ddd; }
+    input, select, textarea, button { padding:9px; margin:4px; border-radius:8px; border:1px solid #ccc; }
+    textarea { width:100%; height:130px; box-sizing:border-box; }
+    button { background:#2f6fed; color:white; border:0; cursor:pointer; font-weight:bold; }
+    button.gray { background:#777; }
+    button.red { background:#d9534f; }
+    button.green { background:#2f9e44; }
+    table { width:100%; border-collapse:collapse; background:white; margin-top:12px; }
+    th, td { border:1px solid #ccc; padding:7px; text-align:center; font-size:13px; }
     th { background:#e9eef8; }
-    .warn { color:#c0392b; font-weight:bold; }
     .small { font-size:13px; color:#555; }
+    .warn { color:#d00000; font-weight:bold; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
 
-<h1>탕정삼성어린이집 당직표 생성기</h1>
-<p class="small">교사별 총시간, 부담점수, 7시 당직, 오후당직, 탄력근무가 고르게 배치되도록 자동 생성합니다.</p>
+<div class="header">
+  <img src="logo.png" class="logo" onerror="this.style.display='none'">
+  <div>
+    <h1>탕정삼성어린이집 당직표 생성기</h1>
+    <div class="contact">문의사항: 김혜인 교사</div>
+  </div>
+</div>
 
 <div class="box">
   <h2>1. 월 선택</h2>
   <input type="month" id="monthInput">
+  <button onclick="generateSchedule()">당직표 자동 생성</button>
+  <button class="green" onclick="saveCurrentSchedule()">현재 당직표 저장</button>
 </div>
 
 <div class="box">
-  <h2>2. 교사 명단 입력</h2>
-  <p class="small">형식: 연령, 반, 이름 / 한 줄에 한 명</p>
-  <textarea id="teacherInput">만1세, 햇빛반, 김교사
+  <h2>2. 교사명단</h2>
+  <button class="gray" onclick="toggleTeacherBox()">교사명단 열기/닫기</button>
+  <button onclick="saveTeachers()">교사명단 저장</button>
+  <div id="teacherBox" class="hidden">
+    <p class="small">형식: 연령, 반, 이름 / 한 줄에 한 명</p>
+    <textarea id="teacherInput"></textarea>
+  </div>
+</div>
+
+<div class="box">
+  <h2>3. 연차 입력</h2>
+  <input type="date" id="leaveDate">
+  <select id="leaveTeacher"></select>
+  <button onclick="addLeave()">연차 추가</button>
+  <button class="red" onclick="clearLeaves()">연차 전체 삭제</button>
+  <div id="leaveList"></div>
+</div>
+
+<div class="box">
+  <h2>4. 저장된 당직표 조회</h2>
+  <select id="savedScheduleSelect"></select>
+  <button onclick="loadSavedSchedule()">조회</button>
+  <button class="red" onclick="deleteSavedSchedule()">삭제</button>
+</div>
+
+<div class="box">
+  <h2>당직표</h2>
+  <button onclick="downloadScheduleExcel()">당직표 엑셀 다운로드</button>
+  <div id="scheduleResult"></div>
+</div>
+
+<div class="box">
+  <h2>교사별 통계</h2>
+  <button onclick="downloadStatsExcel()">교사별 통계 엑셀 다운로드</button>
+  <div id="statsResult"></div>
+</div>
+
+<script>
+const DEFAULT_TEACHERS = `만1세, 햇빛반, 김교사
 만1세, 달빛반, 이교사
 만2세, 봄빛반, 박교사
 만2세, 예빛반, 최교사
 만3세, 새빛반, 정교사
 만4세, 꽃빛반, 한교사
 만4세, 꿈빛반, 오교사
-만5세, 솔빛반, 윤교사</textarea>
-</div>
+만5세, 솔빛반, 윤교사`;
 
-<div class="box">
-  <h2>3. 연차 입력</h2>
-  <p class="small">형식: 날짜, 이름 / 예: 2026-06-05, 김교사</p>
-  <textarea id="leaveInput"></textarea>
-</div>
+let currentSchedule = [];
+let currentStats = [];
+let leaves = JSON.parse(localStorage.getItem("leaves") || "[]");
 
-<div class="box">
-  <button onclick="generateSchedule()">당직표 자동 생성</button>
-</div>
+const slots = [
+  { name:"오전책임교사", time:"07:00~09:00", hours:2, burden:3.8, type:"early7" },
+  { name:"1층 시건", time:"07:00~09:00", hours:2, burden:3.4, type:"early7" },
+  { name:"2층 시건", time:"07:00~09:00", hours:2, burden:3.4, type:"early7" },
+  { name:"놀이터 시건", time:"07:30~09:00", hours:1.5, burden:2.3, type:"morning" },
+  { name:"통합보육", time:"08:00~09:00", hours:1, burden:1.2, type:"morning" },
+  { name:"탄력근무", time:"08:30~17:30", hours:0, burden:-1, type:"flex" },
+  { name:"오후통합", time:"18:00~19:00", hours:1, burden:1.8, type:"evening" },
+  { name:"오후책임교사", time:"18:00~20:00", hours:2, burden:3.8, type:"evening" }
+];
 
-<div class="box">
-  <h2>당직표</h2>
-  <div id="scheduleResult"></div>
-</div>
+window.onload = function() {
+  const savedTeachers = localStorage.getItem("teachers");
+  document.getElementById("teacherInput").value = savedTeachers || DEFAULT_TEACHERS;
+  updateTeacherSelect();
+  renderLeaves();
+  renderSavedScheduleList();
+};
 
-<div class="box">
-  <h2>교사별 통계</h2>
-  <div id="statsResult"></div>
-</div>
+function toggleTeacherBox() {
+  document.getElementById("teacherBox").classList.toggle("hidden");
+}
 
-<script>
+function saveTeachers() {
+  localStorage.setItem("teachers", document.getElementById("teacherInput").value);
+  updateTeacherSelect();
+  alert("교사명단이 저장되었습니다.");
+}
+
 function parseTeachers() {
   const text = document.getElementById("teacherInput").value.trim();
   return text.split("\n").map(line => {
     const [age, room, name] = line.split(",").map(v => v.trim());
     return {
       age, room, name,
-      totalHours: 0,
-      burden: 0,
-      early7: 0,
-      evening: 0,
-      flex: 0,
-      weekdays: { 월:0, 화:0, 수:0, 목:0, 금:0 },
-      assignedDates: []
+      totalHours:0, burden:0, early7:0, evening:0, flex:0,
+      weekdays:{월:0, 화:0, 수:0, 목:0, 금:0},
+      assignedDates:[]
     };
   }).filter(t => t.name);
 }
 
-function parseLeaves() {
-  const text = document.getElementById("leaveInput").value.trim();
-  const leaves = {};
-  if (!text) return leaves;
-
-  text.split("\n").forEach(line => {
-    const [date, name] = line.split(",").map(v => v.trim());
-    if (!leaves[date]) leaves[date] = [];
-    leaves[date].push(name);
+function updateTeacherSelect() {
+  const teachers = parseTeachers();
+  const select = document.getElementById("leaveTeacher");
+  select.innerHTML = "";
+  teachers.forEach(t => {
+    const option = document.createElement("option");
+    option.value = t.name;
+    option.textContent = `${t.name} (${t.room})`;
+    select.appendChild(option);
   });
-  return leaves;
+}
+
+function addLeave() {
+  const date = document.getElementById("leaveDate").value;
+  const teacher = document.getElementById("leaveTeacher").value;
+  if (!date || !teacher) {
+    alert("날짜와 교사를 선택해줘.");
+    return;
+  }
+  leaves.push({ date, teacher });
+  localStorage.setItem("leaves", JSON.stringify(leaves));
+  renderLeaves();
+}
+
+function removeLeave(index) {
+  leaves.splice(index, 1);
+  localStorage.setItem("leaves", JSON.stringify(leaves));
+  renderLeaves();
+}
+
+function clearLeaves() {
+  if (!confirm("연차를 모두 삭제할까요?")) return;
+  leaves = [];
+  localStorage.setItem("leaves", JSON.stringify(leaves));
+  renderLeaves();
+}
+
+function renderLeaves() {
+  let html = `<table><tr><th>날짜</th><th>교사</th><th>삭제</th></tr>`;
+  leaves.forEach((l, i) => {
+    html += `<tr><td>${l.date}</td><td>${l.teacher}</td><td><button class="red" onclick="removeLeave(${i})">삭제</button></td></tr>`;
+  });
+  html += `</table>`;
+  document.getElementById("leaveList").innerHTML = html;
 }
 
 function getWeekday(date) {
@@ -111,17 +201,6 @@ function getMonthDates(monthValue) {
   return dates;
 }
 
-const slots = [
-  { name:"오전책임교사", time:"07:00~09:00", hours:2, burden:3.5, type:"early7" },
-  { name:"1층 시건", time:"07:00~09:00", hours:2, burden:3.2, type:"early7" },
-  { name:"2층 시건", time:"07:00~09:00", hours:2, burden:3.2, type:"early7" },
-  { name:"놀이터 시건", time:"07:30~09:00", hours:1.5, burden:2.2, type:"morning" },
-  { name:"통합보육", time:"08:00~09:00", hours:1, burden:1.2, type:"morning" },
-  { name:"탄력근무", time:"08:30~17:30", hours:0, burden:-1, type:"flex" },
-  { name:"오후통합", time:"18:00~19:00", hours:1, burden:1.7, type:"evening" },
-  { name:"오후마감", time:"18:00~20:00", hours:2, burden:3.5, type:"evening" }
-];
-
 function slotExtraBurden(slot, weekday) {
   let extra = 0;
   if (weekday === "월" && slot.type === "early7") extra += 0.8;
@@ -129,8 +208,8 @@ function slotExtraBurden(slot, weekday) {
   return extra;
 }
 
-function chooseTeacher(teachers, slot, dateStr, weekday, leaves) {
-  const unavailable = leaves[dateStr] || [];
+function chooseTeacher(teachers, slot, dateStr, weekday) {
+  const unavailable = leaves.filter(l => l.date === dateStr).map(l => l.teacher);
 
   const candidates = teachers.filter(t => {
     if (unavailable.includes(t.name)) return false;
@@ -144,18 +223,18 @@ function chooseTeacher(teachers, slot, dateStr, weekday, leaves) {
     const aScore =
       a.totalHours * 10 +
       a.burden * 4 +
-      a.weekdays[weekday] * 3 +
-      (slot.type === "early7" ? a.early7 * 5 : 0) +
-      (slot.type === "evening" ? a.evening * 5 : 0) +
-      (slot.type === "flex" ? a.flex * 5 : 0);
+      a.weekdays[weekday] * 4 +
+      (slot.type === "early7" ? a.early7 * 8 : 0) +
+      (slot.type === "evening" ? a.evening * 7 : 0) +
+      (slot.type === "flex" ? a.flex * 6 : 0);
 
     const bScore =
       b.totalHours * 10 +
       b.burden * 4 +
-      b.weekdays[weekday] * 3 +
-      (slot.type === "early7" ? b.early7 * 5 : 0) +
-      (slot.type === "evening" ? b.evening * 5 : 0) +
-      (slot.type === "flex" ? b.flex * 5 : 0);
+      b.weekdays[weekday] * 4 +
+      (slot.type === "early7" ? b.early7 * 8 : 0) +
+      (slot.type === "evening" ? b.evening * 7 : 0) +
+      (slot.type === "flex" ? b.flex * 6 : 0);
 
     return aScore - bScore;
   });
@@ -166,18 +245,17 @@ function chooseTeacher(teachers, slot, dateStr, weekday, leaves) {
 function generateSchedule() {
   const monthValue = document.getElementById("monthInput").value;
   if (!monthValue) {
-    alert("월을 선택해줘!");
+    alert("월을 선택해줘.");
     return;
   }
 
   const teachers = parseTeachers();
-  const leaves = parseLeaves();
   const dates = getMonthDates(monthValue);
   const schedule = [];
 
   dates.forEach(day => {
     slots.forEach(slot => {
-      const teacher = chooseTeacher(teachers, slot, day.dateStr, day.weekday, leaves);
+      const teacher = chooseTeacher(teachers, slot, day.dateStr, day.weekday);
 
       if (teacher) {
         const extra = slotExtraBurden(slot, day.weekday);
@@ -191,40 +269,36 @@ function generateSchedule() {
         if (slot.type === "flex") teacher.flex++;
 
         schedule.push({
-          date: day.dateStr,
-          weekday: day.weekday,
-          slot: slot.name,
-          time: slot.time,
-          teacher: teacher.name,
-          burden: (slot.burden + extra).toFixed(1)
+          date:day.dateStr,
+          weekday:day.weekday,
+          slot:slot.name,
+          time:slot.time,
+          teacher:teacher.name,
+          burden:(slot.burden + extra).toFixed(1)
         });
       } else {
         schedule.push({
-          date: day.dateStr,
-          weekday: day.weekday,
-          slot: slot.name,
-          time: slot.time,
-          teacher: "배정불가",
-          burden: "-"
+          date:day.dateStr,
+          weekday:day.weekday,
+          slot:slot.name,
+          time:slot.time,
+          teacher:"배정불가",
+          burden:"-"
         });
       }
     });
   });
+
+  currentSchedule = schedule;
+  currentStats = teachers;
 
   renderSchedule(schedule);
   renderStats(teachers);
 }
 
 function renderSchedule(schedule) {
-  let html = `<table>
-    <tr>
-      <th>날짜</th>
-      <th>요일</th>
-      <th>당직</th>
-      <th>시간</th>
-      <th>교사</th>
-      <th>부담점수</th>
-    </tr>`;
+  let html = `<table id="scheduleTable">
+    <tr><th>날짜</th><th>요일</th><th>당직</th><th>시간</th><th>교사</th><th>부담점수</th></tr>`;
 
   schedule.forEach(row => {
     html += `<tr>
@@ -244,43 +318,112 @@ function renderSchedule(schedule) {
 function renderStats(teachers) {
   teachers.sort((a,b) => a.totalHours - b.totalHours);
 
-  let html = `<table>
+  let html = `<table id="statsTable">
     <tr>
-      <th>연령</th>
-      <th>반</th>
-      <th>교사</th>
-      <th>총 당직시간</th>
-      <th>부담점수</th>
-      <th>7시당직</th>
-      <th>오후당직</th>
-      <th>탄력</th>
-      <th>월</th>
-      <th>화</th>
-      <th>수</th>
-      <th>목</th>
-      <th>금</th>
+      <th>연령</th><th>반</th><th>교사</th><th>총 당직시간</th><th>부담점수</th>
+      <th>7시당직</th><th>오후당직</th><th>탄력</th>
+      <th>월</th><th>화</th><th>수</th><th>목</th><th>금</th>
     </tr>`;
 
   teachers.forEach(t => {
     html += `<tr>
-      <td>${t.age}</td>
-      <td>${t.room}</td>
-      <td>${t.name}</td>
-      <td>${t.totalHours}</td>
-      <td>${t.burden.toFixed(1)}</td>
-      <td>${t.early7}</td>
-      <td>${t.evening}</td>
-      <td>${t.flex}</td>
-      <td>${t.weekdays.월}</td>
-      <td>${t.weekdays.화}</td>
-      <td>${t.weekdays.수}</td>
-      <td>${t.weekdays.목}</td>
-      <td>${t.weekdays.금}</td>
+      <td>${t.age}</td><td>${t.room}</td><td>${t.name}</td>
+      <td>${t.totalHours}</td><td>${t.burden.toFixed(1)}</td>
+      <td>${t.early7}</td><td>${t.evening}</td><td>${t.flex}</td>
+      <td>${t.weekdays.월}</td><td>${t.weekdays.화}</td><td>${t.weekdays.수}</td>
+      <td>${t.weekdays.목}</td><td>${t.weekdays.금}</td>
     </tr>`;
   });
 
   html += `</table>`;
   document.getElementById("statsResult").innerHTML = html;
+}
+
+function saveCurrentSchedule() {
+  const monthValue = document.getElementById("monthInput").value;
+  if (!monthValue || currentSchedule.length === 0) {
+    alert("먼저 당직표를 생성해줘.");
+    return;
+  }
+
+  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
+  saved[monthValue] = {
+    schedule: currentSchedule,
+    stats: currentStats,
+    savedAt: new Date().toLocaleString()
+  };
+
+  localStorage.setItem("savedSchedules", JSON.stringify(saved));
+  renderSavedScheduleList();
+  alert(`${monthValue} 당직표가 저장되었습니다.`);
+}
+
+function renderSavedScheduleList() {
+  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
+  const select = document.getElementById("savedScheduleSelect");
+  select.innerHTML = "";
+
+  Object.keys(saved).sort().forEach(month => {
+    const option = document.createElement("option");
+    option.value = month;
+    option.textContent = `${month} 저장본`;
+    select.appendChild(option);
+  });
+}
+
+function loadSavedSchedule() {
+  const month = document.getElementById("savedScheduleSelect").value;
+  if (!month) {
+    alert("저장된 당직표가 없습니다.");
+    return;
+  }
+
+  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
+  currentSchedule = saved[month].schedule;
+  currentStats = saved[month].stats;
+
+  document.getElementById("monthInput").value = month;
+  renderSchedule(currentSchedule);
+  renderStats(currentStats);
+}
+
+function deleteSavedSchedule() {
+  const month = document.getElementById("savedScheduleSelect").value;
+  if (!month) return;
+  if (!confirm(`${month} 저장본을 삭제할까요?`)) return;
+
+  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
+  delete saved[month];
+  localStorage.setItem("savedSchedules", JSON.stringify(saved));
+  renderSavedScheduleList();
+}
+
+function downloadTableAsExcel(tableId, filename) {
+  const table = document.getElementById(tableId);
+  if (!table) {
+    alert("다운로드할 내용이 없습니다.");
+    return;
+  }
+
+  const html = `
+    <html>
+    <head><meta charset="UTF-8"></head>
+    <body>${table.outerHTML}</body>
+    </html>`;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename + ".xls";
+  link.click();
+}
+
+function downloadScheduleExcel() {
+  downloadTableAsExcel("scheduleTable", "당직표");
+}
+
+function downloadStatsExcel() {
+  downloadTableAsExcel("statsTable", "교사별_통계");
 }
 </script>
 

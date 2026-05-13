@@ -23,6 +23,37 @@ th{background:#e8eef9}
 .hidden{display:none}
 .warn{color:red;font-weight:bold}
 .small{font-size:13px;color:#555}
+  .slotHead{
+font-size:11px;
+line-height:1.25;
+min-width:70px;
+}
+
+.holidayRow td{
+background:#bfbfbf !important;
+font-weight:bold;
+font-size:15px;
+height:34px;
+}
+
+.weekGap td{
+background:#444 !important;
+height:4px;
+padding:0;
+border:0;
+}
+
+#scheduleTable{
+font-size:12px;
+}
+
+#scheduleTable th{
+background:#e6edf7;
+}
+
+#scheduleTable td{
+height:28px;
+}
 </style>
 </head>
 <body>
@@ -242,16 +273,21 @@ for(let d=1; d<=lastDay; d++){
 const date = new Date(year, month-1, d);
 const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 const weekday = getWeekday(date);
-
 const holiday = holidays.find(h=>h.date===dateStr);
 
-if(weekday !== "토" && weekday !== "일" && !holiday){
-dates.push({dateStr, day:d, weekday});
+if(weekday !== "토" && weekday !== "일"){
+dates.push({
+dateStr,
+day:d,
+weekday,
+isHoliday: !!holiday,
+holidayReason: holiday ? holiday.reason : ""
+});
 }
 }
 return dates;
 }
-
+  
 function chooseTeacher(teachers, slot, dateStr){
 const unavailable = leaves.filter(l=>l.date===dateStr).map(l=>l.teacher);
 
@@ -277,7 +313,17 @@ const dates = getMonthDates(monthValue);
 const rows = [];
 
 dates.forEach(day=>{
-const row = {day:day.day, weekday:day.weekday};
+const row = {
+day:day.day,
+weekday:day.weekday,
+isHoliday:day.isHoliday,
+holidayReason:day.holidayReason
+};
+
+if(day.isHoliday){
+rows.push(row);
+return;
+}
 
 slots.forEach(slot=>{
 const teacher = chooseTeacher(teachers, slot, day.dateStr);
@@ -295,7 +341,7 @@ row[slot.key] = "배정불가";
 
 rows.push(row);
 });
-
+  
 currentSchedule = rows;
 currentStats = teachers;
 
@@ -342,10 +388,29 @@ let html = `<table id="scheduleTable">
 </tr>
 
 <tr>
-${slots.map(s=>`<th>${s.time}<br>${s.role}</th>`).join("")}
+${slots.map(s=>`<th class="slotHead">${s.time}<br>${s.role}</th>`).join("")}
 </tr>`;
 
+let prevWeekGroup = "";
+
 rows.forEach(r=>{
+const weekGroup = Math.ceil(r.day / 7);
+
+if(prevWeekGroup !== "" && prevWeekGroup !== weekGroup){
+html += `<tr class="weekGap"><td colspan="20"></td></tr>`;
+}
+
+prevWeekGroup = weekGroup;
+
+if(r.isHoliday){
+html += `<tr class="holidayRow">
+<td>${r.day}</td>
+<td>${r.weekday}</td>
+<td colspan="18">${r.holidayReason || "공휴일/제외일"}</td>
+</tr>`;
+return;
+}
+
 html += `<tr>
 <td>${r.day}</td>
 <td>${r.weekday}</td>
@@ -356,7 +421,7 @@ ${slots.map(s=>`<td>${r[s.key] || ""}</td>`).join("")}
 html += `</table>`;
 scheduleResult.innerHTML = html;
 }
-function ageOrder(age){
+  function ageOrder(age){
 return {"만1세":1,"만2세":2,"만3세":3,"만4세":4,"만5세":5}[age] || 99;
 }
 

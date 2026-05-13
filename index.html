@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>탕정삼성어린이집 당직표 생성기</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; background:#f7f8fa; }
+    h1 { margin-bottom: 10px; }
+    .box { background:white; padding:20px; margin-bottom:20px; border-radius:12px; box-shadow:0 2px 8px #ddd; }
+    textarea, input, select, button { padding:10px; margin:5px 0; }
+    textarea { width:100%; height:120px; }
+    button { cursor:pointer; border:0; border-radius:8px; background:#2f6fed; color:white; font-weight:bold; }
+    table { width:100%; border-collapse:collapse; background:white; margin-top:15px; }
+    th, td { border:1px solid #ccc; padding:8px; text-align:center; font-size:14px; }
+    th { background:#e9eef8; }
+    .warn { color:#c0392b; font-weight:bold; }
+    .small { font-size:13px; color:#555; }
+  </style>
+</head>
+<body>
+
+<h1>탕정삼성어린이집 당직표 생성기</h1>
+<p class="small">교사별 총시간, 부담점수, 7시 당직, 오후당직, 탄력근무가 고르게 배치되도록 자동 생성합니다.</p>
+
+<div class="box">
+  <h2>1. 월 선택</h2>
+  <input type="month" id="monthInput">
+</div>
+
+<div class="box">
+  <h2>2. 교사 명단 입력</h2>
+  <p class="small">형식: 연령, 반, 이름 / 한 줄에 한 명</p>
+  <textarea id="teacherInput">만1세, 햇빛반, 김교사
+만1세, 달빛반, 이교사
+만2세, 봄빛반, 박교사
+만2세, 예빛반, 최교사
+만3세, 새빛반, 정교사
+만4세, 꽃빛반, 한교사
+만4세, 꿈빛반, 오교사
+만5세, 솔빛반, 윤교사</textarea>
+</div>
+
+<div class="box">
+  <h2>3. 연차 입력</h2>
+  <p class="small">형식: 날짜, 이름 / 예: 2026-06-05, 김교사</p>
+  <textarea id="leaveInput"></textarea>
+</div>
+
+<div class="box">
+  <button onclick="generateSchedule()">당직표 자동 생성</button>
+</div>
+
+<div class="box">
+  <h2>당직표</h2>
+  <div id="scheduleResult"></div>
+</div>
+
+<div class="box">
+  <h2>교사별 통계</h2>
+  <div id="statsResult"></div>
+</div>
+
+<script>
+function parseTeachers() {
+  const text = document.getElementById("teacherInput").value.trim();
+  return text.split("\n").map(line => {
+    const [age, room, name] = line.split(",").map(v => v.trim());
+    return {
+      age, room, name,
+      totalHours: 0,
+      burden: 0,
+      early7: 0,
+      evening: 0,
+      flex: 0,
+      weekdays: { 월:0, 화:0, 수:0, 목:0, 금:0 },
+      assignedDates: []
+    };
+  }).filter(t => t.name);
+}
+
+function parseLeaves() {
+  const text = document.getElementById("leaveInput").value.trim();
+  const leaves = {};
+  if (!text) return leaves;
+
+  text.split("\n").forEach(line => {
+    const [date, name] = line.split(",").map(v => v.trim());
+    if (!leaves[date]) leaves[date] = [];
+    leaves[date].push(name);
+  });
+  return leaves;
+}
+
+function getWeekday(date) {
+  return ["일","월","화","수","목","금","토"][date.getDay()];
+}
+
+function getMonthDates(monthValue) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const dates = [];
+  const lastDay = new Date(year, month, 0).getDate();
+
+  for (let d = 1; d <= lastDay; d++) {
+    const date = new Date(year, month - 1, d);
+    const weekday = getWeekday(date);
+    if (weekday !== "토" && weekday !== "일") {
+      const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      dates.push({ dateStr, weekday });
+    }
+  }
+  return dates;
+}
+
+const slots = [
+  { name:"오전책임교사", time:"07:00~09:00", hours:2, burden:3.5, type:"early7" },
+  { name:"1층 시건", time:"07:00~09:00", hours:2, burden:3.2, type:"early7" },
+  { name:"2층 시건", time:"07:00~09:00", hours:2, burden:3.2, type:"early7" },
+  { name:"놀이터 시건", time:"07:30~09:00", hours:1.5, burden:2.2, type:"morning" },
+  { name:"통합보육", time:"08:00~09:00", hours:1, burden:1.2, type:"morning" },
+  { name:"탄력근무", time:"08:30~17:30", hours:0, burden:-1, type:"flex" },
+  { name:"오후통합", time:"18:00~19:00", hours:1, burden:1.7, type:"evening" },
+  { name:"오후마감", time:"18:00~20:00", hours:2, burden:3.5, type:"evening" }
+];
+
+function slotExtraBurden(slot, weekday) {
+  let extra = 0;
+  if (weekday === "월" && slot.type === "early7") extra += 0.8;
+  if (weekday === "금" && slot.type === "evening") extra += 0.8;
+  return extra;
+}
+
+function chooseTeacher(teachers, slot, dateStr, weekday, leaves) {
+  const unavailable = leaves[dateStr] || [];
+
+  const candidates = teachers.filter(t => {
+    if (unavailable.includes(t.name)) return false;
+    if (t.assignedDates.includes(dateStr)) return false;
+    return true;
+  });
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a,b) => {
+    const aScore =
+      a.totalHours * 10 +
+      a.burden * 4 +
+      a.weekdays[weekday] * 3 +
+      (slot.type === "early7" ? a.early7 * 5 : 0) +
+      (slot.type === "evening" ? a.evening * 5 : 0) +
+      (slot.type === "flex" ? a.flex * 5 : 0);
+
+    const bScore =
+      b.totalHours * 10 +
+      b.burden * 4 +
+      b.weekdays[weekday] * 3 +
+      (slot.type === "early7" ? b.early7 * 5 : 0) +
+      (slot.type === "evening" ? b.evening * 5 : 0) +
+      (slot.type === "flex" ? b.flex * 5 : 0);
+
+    return aScore - bScore;
+  });
+
+  return candidates[0];
+}
+
+function generateSchedule() {
+  const monthValue = document.getElementById("monthInput").value;
+  if (!monthValue) {
+    alert("월을 선택해줘!");
+    return;
+  }
+
+  const teachers = parseTeachers();
+  const leaves = parseLeaves();
+  const dates = getMonthDates(monthValue);
+  const schedule = [];
+
+  dates.forEach(day => {
+    slots.forEach(slot => {
+      const teacher = chooseTeacher(teachers, slot, day.dateStr, day.weekday, leaves);
+
+      if (teacher) {
+        const extra = slotExtraBurden(slot, day.weekday);
+        teacher.totalHours += slot.hours;
+        teacher.burden += slot.burden + extra;
+        teacher.weekdays[day.weekday]++;
+        teacher.assignedDates.push(day.dateStr);
+
+        if (slot.type === "early7") teacher.early7++;
+        if (slot.type === "evening") teacher.evening++;
+        if (slot.type === "flex") teacher.flex++;
+
+        schedule.push({
+          date: day.dateStr,
+          weekday: day.weekday,
+          slot: slot.name,
+          time: slot.time,
+          teacher: teacher.name,
+          burden: (slot.burden + extra).toFixed(1)
+        });
+      } else {
+        schedule.push({
+          date: day.dateStr,
+          weekday: day.weekday,
+          slot: slot.name,
+          time: slot.time,
+          teacher: "배정불가",
+          burden: "-"
+        });
+      }
+    });
+  });
+
+  renderSchedule(schedule);
+  renderStats(teachers);
+}
+
+function renderSchedule(schedule) {
+  let html = `<table>
+    <tr>
+      <th>날짜</th>
+      <th>요일</th>
+      <th>당직</th>
+      <th>시간</th>
+      <th>교사</th>
+      <th>부담점수</th>
+    </tr>`;
+
+  schedule.forEach(row => {
+    html += `<tr>
+      <td>${row.date}</td>
+      <td>${row.weekday}</td>
+      <td>${row.slot}</td>
+      <td>${row.time}</td>
+      <td class="${row.teacher === '배정불가' ? 'warn' : ''}">${row.teacher}</td>
+      <td>${row.burden}</td>
+    </tr>`;
+  });
+
+  html += `</table>`;
+  document.getElementById("scheduleResult").innerHTML = html;
+}
+
+function renderStats(teachers) {
+  teachers.sort((a,b) => a.totalHours - b.totalHours);
+
+  let html = `<table>
+    <tr>
+      <th>연령</th>
+      <th>반</th>
+      <th>교사</th>
+      <th>총 당직시간</th>
+      <th>부담점수</th>
+      <th>7시당직</th>
+      <th>오후당직</th>
+      <th>탄력</th>
+      <th>월</th>
+      <th>화</th>
+      <th>수</th>
+      <th>목</th>
+      <th>금</th>
+    </tr>`;
+
+  teachers.forEach(t => {
+    html += `<tr>
+      <td>${t.age}</td>
+      <td>${t.room}</td>
+      <td>${t.name}</td>
+      <td>${t.totalHours}</td>
+      <td>${t.burden.toFixed(1)}</td>
+      <td>${t.early7}</td>
+      <td>${t.evening}</td>
+      <td>${t.flex}</td>
+      <td>${t.weekdays.월}</td>
+      <td>${t.weekdays.화}</td>
+      <td>${t.weekdays.수}</td>
+      <td>${t.weekdays.목}</td>
+      <td>${t.weekdays.금}</td>
+    </tr>`;
+  });
+
+  html += `</table>`;
+  document.getElementById("statsResult").innerHTML = html;
+}
+</script>
+
+</body>
+</html>

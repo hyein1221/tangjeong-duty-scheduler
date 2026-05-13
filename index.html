@@ -1,84 +1,84 @@
+<!-- 중요: 기존 index.html 전체 삭제 후 아래 코드로 교체 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <title>탕정삼성어린이집 당직표 생성기</title>
 <style>
-body{font-family:Arial,sans-serif;margin:24px;background:#f6f7fb;color:#222}
-.header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+body{font-family:Arial,sans-serif;margin:20px;background:#f5f7fb}
+.header{display:flex;align-items:center;gap:15px;margin-bottom:20px}
 .logo{width:70px;height:70px;object-fit:contain}
-h1{margin:0;font-size:28px}
-.contact{font-size:14px;color:#555;margin-top:5px}
-.box{background:#fff;padding:18px;margin-bottom:18px;border-radius:14px;box-shadow:0 2px 10px #ddd}
-input,select,textarea,button{padding:8px;margin:4px;border-radius:7px;border:1px solid #bbb}
+h1{margin:0}
+.box{background:#fff;padding:18px;margin-bottom:18px;border-radius:12px;box-shadow:0 2px 8px #ddd}
+input,select,textarea,button{padding:8px;margin:4px;border-radius:6px;border:1px solid #bbb}
 button{background:#2f6fed;color:white;border:0;font-weight:bold;cursor:pointer}
-button.gray{background:#777}
 button.red{background:#d9534f}
+button.gray{background:#777}
 button.green{background:#2f9e44}
-textarea{width:100%;height:120px;box-sizing:border-box}
-table{width:100%;border-collapse:collapse;background:white;margin-top:12px}
-th,td{border:1px solid #bbb;padding:7px;text-align:center;font-size:13px}
-th{background:#e9eef8}
-.ageRow{background:#dfe8f7;font-weight:bold;text-align:left}
-.small{font-size:13px;color:#555}
+textarea{width:100%;height:120px}
+table{width:100%;border-collapse:collapse;margin-top:10px;background:white}
+th,td{border:1px solid #bbb;padding:6px;text-align:center;font-size:12px}
+th{background:#e8eef9}
+.group{background:#dbe6f7;font-weight:bold}
 .hidden{display:none}
 .warn{color:red;font-weight:bold}
+.small{font-size:13px;color:#555}
 </style>
 </head>
-
 <body>
 
 <div class="header">
-  <img src="logo.png" class="logo" onerror="this.style.display='none'">
-  <div>
-    <h1>탕정삼성어린이집 당직표 생성기</h1>
-    <div class="contact">문의사항: 김혜인 교사</div>
-  </div>
+<img src="logo.png" class="logo" onerror="this.style.display='none'">
+<div>
+<h1>탕정삼성어린이집 당직표 생성기</h1>
+<div>문의사항: 김혜인 교사</div>
+</div>
 </div>
 
 <div class="box">
-  <h2>1. 월 선택</h2>
-  <input type="month" id="monthInput">
-  <button onclick="generateSchedule()">당직표 자동 생성</button>
-  <button class="green" onclick="saveCurrentSchedule()">현재 당직표 저장</button>
+<h2>1. 월 선택</h2>
+<input type="month" id="monthInput">
+<button onclick="generateSchedule()">당직표 생성</button>
+<button class="green" onclick="saveCurrentSchedule()">당직표 저장</button>
 </div>
 
 <div class="box">
-  <h2>2. 교사명단</h2>
-  <button class="gray" onclick="toggleTeacherBox()">교사명단 열기/닫기</button>
-  <button onclick="saveTeachers()">교사명단 저장</button>
-  <div id="teacherBox" class="hidden">
-    <p class="small">형식: 연령, 반, 이름 / 한 줄에 한 명</p>
-    <textarea id="teacherInput"></textarea>
-  </div>
+<h2>2. 교사명단</h2>
+<button class="gray" onclick="toggleTeacherBox()">교사명단 열기/닫기</button>
+<button onclick="saveTeachers()">교사명단 저장</button>
+<div id="teacherBox" class="hidden">
+<textarea id="teacherInput"></textarea>
+</div>
 </div>
 
 <div class="box">
-  <h2>3. 연차 입력</h2>
-  <input type="date" id="leaveDate">
-  <select id="leaveTeacher"></select>
-  <button onclick="addLeave()">연차 추가</button>
-  <button class="red" onclick="clearLeaves()">연차 전체 삭제</button>
-  <div id="leaveList"></div>
+<h2>3. 연차 입력</h2>
+<input type="date" id="leaveDate">
+<select id="leaveTeacher"></select>
+<button onclick="addLeave()">연차 추가</button>
+<button class="red" onclick="clearLeaves()">전체 삭제</button>
+<div id="leaveList"></div>
 </div>
 
 <div class="box">
-  <h2>4. 저장된 당직표 조회</h2>
-  <select id="savedScheduleSelect"></select>
-  <button onclick="loadSavedSchedule()">조회</button>
-  <button class="red" onclick="deleteSavedSchedule()">삭제</button>
+<h2>4. 공휴일 / 제외일 입력</h2>
+<input type="date" id="holidayDate">
+<input type="text" id="holidayReason" placeholder="사유 입력">
+<button onclick="addHoliday()">추가</button>
+<button class="red" onclick="clearHolidays()">전체 삭제</button>
+<div id="holidayList"></div>
 </div>
 
 <div class="box">
-  <h2>당직표</h2>
-  <button onclick="downloadScheduleExcel()">당직표 엑셀 다운로드</button>
-  <div id="scheduleResult"></div>
+<h2>당직표</h2>
+<button onclick="downloadScheduleExcel()">엑셀 다운로드</button>
+<div id="scheduleResult"></div>
 </div>
 
 <div class="box">
-  <h2>교사별 통계</h2>
-  <button onclick="downloadStatsExcel()">교사별 통계 엑셀 다운로드</button>
-  <div id="statsResult"></div>
+<h2>교사별 통계</h2>
+<button onclick="downloadStatsExcel()">엑셀 다운로드</button>
+<div id="statsResult"></div>
 </div>
 
 <script>
@@ -88,386 +88,324 @@ const DEFAULT_TEACHERS = `만1세, 햇빛반, 김교사
 만2세, 예빛반, 최교사
 만3세, 새빛반, 정교사
 만4세, 꽃빛반, 한교사
-만4세, 꿈빛반, 오교사
+만4세, 윤빛반, 오교사
 만5세, 솔빛반, 윤교사
 만5세, 들빛반, 임교사`;
 
-let currentScheduleRows = [];
-let currentStats = [];
 let leaves = JSON.parse(localStorage.getItem("leaves") || "[]");
+let holidays = JSON.parse(localStorage.getItem("holidays") || "[]");
+let currentSchedule = [];
+let currentStats = [];
 
-/* 실제 화면에 보일 당직 칸 */
 const slots = [
-  { key:"morningManager", label:"오전책임교사", time:"07:00~09:00", hours:2, part:"morning", type:"early7", burden:3.8 },
-  { key:"firstLock", label:"1층 시건", time:"07:00~09:00", hours:2, part:"morning", type:"early7", burden:3.4 },
-  { key:"secondLock", label:"2층 시건", time:"07:00~09:00", hours:2, part:"morning", type:"early7", burden:3.4 },
-  { key:"playground", label:"놀이터 시건", time:"07:30~09:00", hours:1.5, part:"morning", type:"morning", burden:2.3 },
-  { key:"care730", label:"통합보육 7:30", time:"07:30~09:00", hours:1.5, part:"morning", type:"morning", burden:2.1 },
-  { key:"care800", label:"통합보육 8:00", time:"08:00~09:00", hours:1, part:"morning", type:"morning", burden:1.2 },
-  { key:"flex", label:"탄력", time:"08:30~17:30", hours:0, part:"flex", type:"flex", burden:-1 },
-  { key:"evening1", label:"오후통합", time:"18:00~19:00", hours:1, part:"afternoon", type:"evening", burden:1.8 },
-  { key:"eveningManager", label:"오후책임교사", time:"18:00~20:00", hours:2, part:"afternoon", type:"evening", burden:3.8 }
+{key:"m1", label:"햇빛", hours:2, part:"morning"},
+{key:"m2", label:"달빛", hours:1.5, part:"morning"},
+{key:"m3", label:"달빛", hours:1, part:"morning"},
+{key:"m4", label:"봄빛", hours:2, part:"morning"},
+{key:"m5", label:"예빛", hours:1.5, part:"morning"},
+{key:"m6", label:"예빛", hours:1, part:"morning"},
+{key:"m7", label:"새빛", hours:2, part:"morning"},
+{key:"m8", label:"새빛", hours:1, part:"morning"},
+{key:"m9", label:"새빛 탄력", hours:0, part:"morning"},
+{key:"m10", label:"꽃빛", hours:1.5, part:"morning"},
+{key:"m11", label:"윤빛", hours:1.5, part:"morning"},
+{key:"m12", label:"솔빛", hours:1, part:"morning"},
+{key:"m13", label:"들빛 탄력", hours:0, part:"morning"},
+{key:"m14", label:"오전책임", hours:2, part:"morning"},
+{key:"m15", label:"놀이터", hours:1.5, part:"morning"},
+{key:"m16", label:"2층시건", hours:2, part:"morning"},
+{key:"a1", label:"오후통합", hours:1, part:"afternoon"},
+{key:"a2", label:"오후책임", hours:2, part:"afternoon"}
 ];
 
 window.onload = function(){
-  document.getElementById("teacherInput").value = localStorage.getItem("teachers") || DEFAULT_TEACHERS;
-  updateTeacherSelect();
-  renderLeaves();
-  renderSavedScheduleList();
+document.getElementById("teacherInput").value = localStorage.getItem("teachers") || DEFAULT_TEACHERS;
+updateTeacherSelect();
+renderLeaves();
+renderHolidays();
 };
 
 function toggleTeacherBox(){
-  document.getElementById("teacherBox").classList.toggle("hidden");
+document.getElementById("teacherBox").classList.toggle("hidden");
 }
 
 function saveTeachers(){
-  localStorage.setItem("teachers", document.getElementById("teacherInput").value);
-  updateTeacherSelect();
-  alert("교사명단이 저장되었습니다.");
+localStorage.setItem("teachers", document.getElementById("teacherInput").value);
+updateTeacherSelect();
+alert("교사명단 저장 완료");
 }
 
 function parseTeachers(){
-  const text = document.getElementById("teacherInput").value.trim();
-  return text.split("\n").map(line=>{
-    const [age, room, name] = line.split(",").map(v=>v.trim());
-    return {
-      age, room, name,
-      morningHours:0,
-      afternoonHours:0,
-      totalHours:0,
-      burden:0,
-      early7:0,
-      evening:0,
-      flex:0,
-      weekdays:{월:0,화:0,수:0,목:0,금:0},
-      assignedDates:[]
-    };
-  }).filter(t=>t.name);
+return document.getElementById("teacherInput").value.trim().split("\n").map(line=>{
+const [age, room, name] = line.split(",").map(v=>v.trim());
+return {
+age, room, name,
+morningHours:0,
+afternoonHours:0,
+totalHours:0,
+assignedDates:[]
+};
+});
 }
 
 function updateTeacherSelect(){
-  const teachers = parseTeachers();
-  const select = document.getElementById("leaveTeacher");
-  select.innerHTML = "";
-  teachers.forEach(t=>{
-    const op = document.createElement("option");
-    op.value = t.name;
-    op.textContent = `${t.name} (${t.age} ${t.room})`;
-    select.appendChild(op);
-  });
+const teachers = parseTeachers();
+const select = document.getElementById("leaveTeacher");
+select.innerHTML = "";
+teachers.forEach(t=>{
+const op = document.createElement("option");
+op.value = t.name;
+op.textContent = `${t.name} (${t.room})`;
+select.appendChild(op);
+});
 }
 
 function addLeave(){
-  const date = document.getElementById("leaveDate").value;
-  const teacher = document.getElementById("leaveTeacher").value;
-  if(!date || !teacher){ alert("날짜와 교사를 선택해줘."); return; }
-  leaves.push({date, teacher});
-  localStorage.setItem("leaves", JSON.stringify(leaves));
-  renderLeaves();
+const date = leaveDate.value;
+const teacher = leaveTeacher.value;
+if(!date || !teacher) return;
+leaves.push({date, teacher});
+localStorage.setItem("leaves", JSON.stringify(leaves));
+renderLeaves();
 }
 
 function removeLeave(i){
-  leaves.splice(i,1);
-  localStorage.setItem("leaves", JSON.stringify(leaves));
-  renderLeaves();
+leaves.splice(i,1);
+localStorage.setItem("leaves", JSON.stringify(leaves));
+renderLeaves();
 }
 
 function clearLeaves(){
-  if(!confirm("연차를 모두 삭제할까요?")) return;
-  leaves = [];
-  localStorage.setItem("leaves", JSON.stringify(leaves));
-  renderLeaves();
+leaves=[];
+localStorage.setItem("leaves", JSON.stringify(leaves));
+renderLeaves();
 }
 
 function renderLeaves(){
-  let html = `<table><tr><th>날짜</th><th>교사</th><th>삭제</th></tr>`;
-  leaves.forEach((l,i)=>{
-    html += `<tr><td>${l.date}</td><td>${l.teacher}</td><td><button class="red" onclick="removeLeave(${i})">삭제</button></td></tr>`;
-  });
-  html += `</table>`;
-  document.getElementById("leaveList").innerHTML = html;
+let html="<table><tr><th>날짜</th><th>교사</th><th>삭제</th></tr>";
+leaves.forEach((l,i)=>{
+html += `<tr><td>${l.date}</td><td>${l.teacher}</td><td><button class="red" onclick="removeLeave(${i})">삭제</button></td></tr>`;
+});
+html+="</table>";
+leaveList.innerHTML = html;
+}
+
+function addHoliday(){
+const date = holidayDate.value;
+const reason = holidayReason.value;
+if(!date) return;
+holidays.push({date, reason});
+localStorage.setItem("holidays", JSON.stringify(holidays));
+renderHolidays();
+}
+
+function removeHoliday(i){
+holidays.splice(i,1);
+localStorage.setItem("holidays", JSON.stringify(holidays));
+renderHolidays();
+}
+
+function clearHolidays(){
+holidays=[];
+localStorage.setItem("holidays", JSON.stringify(holidays));
+renderHolidays();
+}
+
+function renderHolidays(){
+let html="<table><tr><th>날짜</th><th>사유</th><th>삭제</th></tr>";
+holidays.forEach((h,i)=>{
+html += `<tr><td>${h.date}</td><td>${h.reason||""}</td><td><button class="red" onclick="removeHoliday(${i})">삭제</button></td></tr>`;
+});
+html+="</table>";
+holidayList.innerHTML = html;
 }
 
 function getWeekday(date){
-  return ["일","월","화","수","목","금","토"][date.getDay()];
+return ["일","월","화","수","목","금","토"][date.getDay()];
 }
 
 function getMonthDates(monthValue){
-  const [year, month] = monthValue.split("-").map(Number);
-  const lastDay = new Date(year, month, 0).getDate();
-  const dates = [];
+const [year, month] = monthValue.split("-").map(Number);
+const lastDay = new Date(year, month, 0).getDate();
+const dates = [];
 
-  for(let d=1; d<=lastDay; d++){
-    const date = new Date(year, month-1, d);
-    const weekday = getWeekday(date);
-    if(weekday !== "토" && weekday !== "일"){
-      dates.push({
-        dateStr:`${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`,
-        day:d,
-        weekday
-      });
-    }
-  }
-  return dates;
+for(let d=1; d<=lastDay; d++){
+const date = new Date(year, month-1, d);
+const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+const weekday = getWeekday(date);
+
+const holiday = holidays.find(h=>h.date===dateStr);
+
+if(weekday !== "토" && weekday !== "일" && !holiday){
+dates.push({dateStr, day:d, weekday});
+}
+}
+return dates;
 }
 
-function extraBurden(slot, weekday){
-  let extra = 0;
-  if(weekday === "월" && slot.type === "early7") extra += 0.8;
-  if(weekday === "금" && slot.type === "evening") extra += 0.8;
-  return extra;
-}
+function chooseTeacher(teachers, slot, dateStr){
+const unavailable = leaves.filter(l=>l.date===dateStr).map(l=>l.teacher);
 
-function chooseTeacher(teachers, slot, dateStr, weekday){
-  const unavailable = leaves.filter(l=>l.date === dateStr).map(l=>l.teacher);
+const candidates = teachers.filter(t=>{
+if(unavailable.includes(t.name)) return false;
+if(t.assignedDates.includes(dateStr)) return false;
+return true;
+});
 
-  const candidates = teachers.filter(t=>{
-    if(unavailable.includes(t.name)) return false;
-    if(t.assignedDates.includes(dateStr)) return false;
-    return true;
-  });
+if(candidates.length===0) return null;
 
-  if(candidates.length === 0) return null;
+candidates.sort((a,b)=>a.totalHours - b.totalHours);
 
-  candidates.sort((a,b)=>{
-    const aScore =
-      a.totalHours * 10 +
-      a.burden * 4 +
-      a.weekdays[weekday] * 4 +
-      (slot.type === "early7" ? a.early7 * 8 : 0) +
-      (slot.type === "evening" ? a.evening * 7 : 0) +
-      (slot.type === "flex" ? a.flex * 7 : 0);
-
-    const bScore =
-      b.totalHours * 10 +
-      b.burden * 4 +
-      b.weekdays[weekday] * 4 +
-      (slot.type === "early7" ? b.early7 * 8 : 0) +
-      (slot.type === "evening" ? b.evening * 7 : 0) +
-      (slot.type === "flex" ? b.flex * 7 : 0);
-
-    return aScore - bScore;
-  });
-
-  return candidates[0];
+return candidates[0];
 }
 
 function generateSchedule(){
-  const monthValue = document.getElementById("monthInput").value;
-  if(!monthValue){ alert("월을 선택해줘."); return; }
+const monthValue = monthInput.value;
+if(!monthValue){alert("월 선택 필요"); return;}
 
-  const teachers = parseTeachers();
-  const dates = getMonthDates(monthValue);
-  const rows = [];
+const teachers = parseTeachers();
+const dates = getMonthDates(monthValue);
+const rows = [];
 
-  dates.forEach(day=>{
-    const row = { date:day.dateStr, day:day.day, weekday:day.weekday };
+dates.forEach(day=>{
+const row = {day:day.day, weekday:day.weekday};
 
-    slots.forEach(slot=>{
-      const teacher = chooseTeacher(teachers, slot, day.dateStr, day.weekday);
+slots.forEach(slot=>{
+const teacher = chooseTeacher(teachers, slot, day.dateStr);
 
-      if(teacher){
-        row[slot.key] = teacher.name;
+if(teacher){
+row[slot.key] = teacher.name;
+teacher.totalHours += slot.hours;
+if(slot.part==="morning") teacher.morningHours += slot.hours;
+if(slot.part==="afternoon") teacher.afternoonHours += slot.hours;
+teacher.assignedDates.push(day.dateStr);
+}else{
+row[slot.key] = "배정불가";
+}
+});
 
-        teacher.totalHours += slot.hours;
-        if(slot.part === "morning") teacher.morningHours += slot.hours;
-        if(slot.part === "afternoon") teacher.afternoonHours += slot.hours;
+rows.push(row);
+});
 
-        teacher.burden += slot.burden + extraBurden(slot, day.weekday);
-        teacher.weekdays[day.weekday]++;
-        teacher.assignedDates.push(day.dateStr);
+currentSchedule = rows;
+currentStats = teachers;
 
-        if(slot.type === "early7") teacher.early7++;
-        if(slot.type === "evening") teacher.evening++;
-        if(slot.type === "flex") teacher.flex++;
-      } else {
-        row[slot.key] = "배정불가";
-      }
-    });
-
-    rows.push(row);
-  });
-
-  currentScheduleRows = rows;
-  currentStats = teachers;
-
-  renderSchedule(rows);
-  renderStats(teachers);
+renderSchedule(rows);
+renderStats(teachers);
 }
 
 function renderSchedule(rows){
-  let html = `<table id="scheduleTable">
-    <tr>
-      <th rowspan="2">일</th>
-      <th rowspan="2">요일</th>
-      <th colspan="7">오전</th>
-      <th colspan="2">오후</th>
-    </tr>
-    <tr>
-      <th>오전책임교사<br>07:00~09:00</th>
-      <th>1층 시건<br>07:00~09:00</th>
-      <th>2층 시건<br>07:00~09:00</th>
-      <th>놀이터 시건<br>07:30~09:00</th>
-      <th>통합보육 7:30<br>07:30~09:00</th>
-      <th>통합보육 8:00<br>08:00~09:00</th>
-      <th>탄력<br>08:30~17:30</th>
-      <th>오후통합<br>18:00~19:00</th>
-      <th>오후책임교사<br>18:00~20:00</th>
-    </tr>`;
+let html = `<table id="scheduleTable">
+<tr>
+<th rowspan="3">일</th>
+<th rowspan="3">요일</th>
+<th colspan="16">오전</th>
+<th colspan="2">오후</th>
+</tr>
+<tr>
+<th colspan="3">만1세</th>
+<th colspan="3">만2세</th>
+<th colspan="3">만3세</th>
+<th colspan="2">만4세</th>
+<th colspan="2">만5세</th>
+<th colspan="3">통합</th>
+<th colspan="2">통합</th>
+</tr>
+<tr>
+<th>햇빛</th><th>달빛</th><th>달빛</th>
+<th>봄빛</th><th>예빛</th><th>예빛</th>
+<th>새빛</th><th>새빛</th><th>탄력</th>
+<th>꽃빛</th><th>윤빛</th>
+<th>솔빛</th><th>들빛</th>
+<th>오전책임</th><th>놀이터</th><th>2층시건</th>
+<th>오후통합</th><th>오후책임</th>
+</tr>`;
 
-  rows.forEach(r=>{
-    html += `<tr>
-      <td>${r.day}</td>
-      <td>${r.weekday}</td>
-      <td>${cell(r.morningManager)}</td>
-      <td>${cell(r.firstLock)}</td>
-      <td>${cell(r.secondLock)}</td>
-      <td>${cell(r.playground)}</td>
-      <td>${cell(r.care730)}</td>
-      <td>${cell(r.care800)}</td>
-      <td>${cell(r.flex)}</td>
-      <td>${cell(r.evening1)}</td>
-      <td>${cell(r.eveningManager)}</td>
-    </tr>`;
-  });
+rows.forEach(r=>{
+html += `<tr>
+<td>${r.day}</td>
+<td>${r.weekday}</td>
+${slots.map(s=>`<td>${r[s.key] || ""}</td>`).join("")}
+</tr>`;
+});
 
-  html += `</table>`;
-  document.getElementById("scheduleResult").innerHTML = html;
-}
-
-function cell(value){
-  return value === "배정불가" ? `<span class="warn">배정불가</span>` : value;
+html += `</table>`;
+scheduleResult.innerHTML = html;
 }
 
 function ageOrder(age){
-  const order = {"만1세":1,"만2세":2,"만3세":3,"만4세":4,"만5세":5};
-  return order[age] || 99;
+return {"만1세":1,"만2세":2,"만3세":3,"만4세":4,"만5세":5}[age] || 99;
 }
 
 function renderStats(teachers){
-  const sorted = [...teachers].sort((a,b)=>{
-    if(ageOrder(a.age) !== ageOrder(b.age)) return ageOrder(a.age) - ageOrder(b.age);
-    if(a.room !== b.room) return a.room.localeCompare(b.room, "ko");
-    return a.name.localeCompare(b.name, "ko");
-  });
+teachers.sort((a,b)=>{
+if(ageOrder(a.age)!==ageOrder(b.age)) return ageOrder(a.age)-ageOrder(b.age);
+if(a.room!==b.room) return a.room.localeCompare(b.room,"ko");
+return a.name.localeCompare(b.name,"ko");
+});
 
-  let html = `<table id="statsTable">
-    <tr>
-      <th>연령</th>
-      <th>반</th>
-      <th>교사</th>
-      <th>오전 시간</th>
-      <th>오후 시간</th>
-      <th>총 시간</th>
-      <th>7시 당직</th>
-      <th>오후 당직</th>
-      <th>탄력</th>
-      <th>월</th><th>화</th><th>수</th><th>목</th><th>금</th>
-    </tr>`;
+let html = `<table id="statsTable">
+<tr>
+<th>연령</th>
+<th>반</th>
+<th>교사</th>
+<th>오전 시간</th>
+<th>오후 시간</th>
+<th>총 시간</th>
+</tr>`;
 
-  let currentAge = "";
-  sorted.forEach(t=>{
-    if(t.age !== currentAge){
-      currentAge = t.age;
-      html += `<tr><td colspan="14" class="ageRow">${currentAge}</td></tr>`;
-    }
+let currentAge = "";
 
-    html += `<tr>
-      <td>${t.age}</td>
-      <td>${t.room}</td>
-      <td>${t.name}</td>
-      <td>${t.morningHours}</td>
-      <td>${t.afternoonHours}</td>
-      <td>${t.totalHours}</td>
-      <td>${t.early7}</td>
-      <td>${t.evening}</td>
-      <td>${t.flex}</td>
-      <td>${t.weekdays.월}</td>
-      <td>${t.weekdays.화}</td>
-      <td>${t.weekdays.수}</td>
-      <td>${t.weekdays.목}</td>
-      <td>${t.weekdays.금}</td>
-    </tr>`;
-  });
+teachers.forEach(t=>{
+if(currentAge !== t.age){
+currentAge = t.age;
+html += `<tr><td colspan="6" class="group">${t.age}</td></tr>`;
+}
 
-  html += `</table>`;
-  document.getElementById("statsResult").innerHTML = html;
+html += `<tr>
+<td>${t.age}</td>
+<td>${t.room}</td>
+<td>${t.name}</td>
+<td>${t.morningHours}</td>
+<td>${t.afternoonHours}</td>
+<td>${t.totalHours}</td>
+</tr>`;
+});
+
+html += `</table>`;
+statsResult.innerHTML = html;
 }
 
 function saveCurrentSchedule(){
-  const monthValue = document.getElementById("monthInput").value;
-  if(!monthValue || currentScheduleRows.length === 0){
-    alert("먼저 당직표를 생성해줘.");
-    return;
-  }
+const month = monthInput.value;
+if(!month || currentSchedule.length===0){alert("먼저 생성 필요"); return;}
 
-  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
-  saved[monthValue] = {
-    schedule: currentScheduleRows,
-    stats: currentStats,
-    savedAt: new Date().toLocaleString()
-  };
+const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
+saved[month] = {
+schedule:currentSchedule,
+stats:currentStats
+};
 
-  localStorage.setItem("savedSchedules", JSON.stringify(saved));
-  renderSavedScheduleList();
-  alert(`${monthValue} 당직표가 저장되었습니다.`);
-}
-
-function renderSavedScheduleList(){
-  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
-  const select = document.getElementById("savedScheduleSelect");
-  select.innerHTML = "";
-
-  Object.keys(saved).sort().forEach(month=>{
-    const op = document.createElement("option");
-    op.value = month;
-    op.textContent = `${month} 저장본`;
-    select.appendChild(op);
-  });
-}
-
-function loadSavedSchedule(){
-  const month = document.getElementById("savedScheduleSelect").value;
-  if(!month){ alert("저장된 당직표가 없습니다."); return; }
-
-  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
-  currentScheduleRows = saved[month].schedule;
-  currentStats = saved[month].stats;
-
-  document.getElementById("monthInput").value = month;
-  renderSchedule(currentScheduleRows);
-  renderStats(currentStats);
-}
-
-function deleteSavedSchedule(){
-  const month = document.getElementById("savedScheduleSelect").value;
-  if(!month) return;
-  if(!confirm(`${month} 저장본을 삭제할까요?`)) return;
-
-  const saved = JSON.parse(localStorage.getItem("savedSchedules") || "{}");
-  delete saved[month];
-  localStorage.setItem("savedSchedules", JSON.stringify(saved));
-  renderSavedScheduleList();
+localStorage.setItem("savedSchedules", JSON.stringify(saved));
+alert("저장 완료");
 }
 
 function downloadTableAsExcel(tableId, filename){
-  const table = document.getElementById(tableId);
-  if(!table){ alert("다운로드할 내용이 없습니다."); return; }
-
-  const html = `<html><head><meta charset="UTF-8"></head><body>${table.outerHTML}</body></html>`;
-  const blob = new Blob([html], {type:"application/vnd.ms-excel;charset=utf-8;"});
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename + ".xls";
-  link.click();
+const table = document.getElementById(tableId);
+const html = `<html><head><meta charset="UTF-8"></head><body>${table.outerHTML}</body></html>`;
+const blob = new Blob([html], {type:"application/vnd.ms-excel"});
+const link = document.createElement("a");
+link.href = URL.createObjectURL(blob);
+link.download = filename + ".xls";
+link.click();
 }
 
 function downloadScheduleExcel(){
-  downloadTableAsExcel("scheduleTable", "당직표");
+downloadTableAsExcel("scheduleTable","당직표");
 }
 
 function downloadStatsExcel(){
-  downloadTableAsExcel("statsTable", "교사별_통계");
+downloadTableAsExcel("statsTable","교사별통계");
 }
 </script>
 

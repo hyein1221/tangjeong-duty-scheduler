@@ -508,7 +508,8 @@ function chooseTeacher(teachers, slot, dateStr){
     if(slot.type==="flex" && t.flexCount >= 3) return false;
 
     if(slot.type==="evening" && t.eveningManagerCountThisMonth > 0) return false;
-
+    if(slot.type==="eveningManager" && t.eveningManagerCountThisMonth >= 1) return false;
+    
     if(slot.type==="flex" && leaveRooms.includes(t.room)) return false;
 
     if(slot.type==="early7" || slot.type==="morningManager"){

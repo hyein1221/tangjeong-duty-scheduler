@@ -254,13 +254,14 @@ function parseTeachers(){
       morningCount:0,
       afternoonCount:0,
       totalCount:0,
+      flexCount:0,
       dutyDates:[],
       assignedDates:[],
       morningManagerCount:0
     };
   }).filter(t=>t.name);
 }
-
+  
 async function saveTeachers(){
   await saveAppData("teachers", teacherInput.value);
   updateTeacherSelect();
@@ -407,94 +408,27 @@ function nameHash(str){
   return h / 1000;
 }
 
-function chooseTeacher(teachers, slot, dateStr){
-  const unavailable = leaves.filter(l=>l.date===dateStr).map(l=>l.teacher);
-  const alreadyAssignedToday = teachers.filter(t=>t.assignedDates.includes(dateStr));
-  const flexMap = getTeacherLeavePreviousFlexMap();
-  const leaveRooms = getLeaveRoomsOnDate(dateStr, teachers);
-
-  let candidates = teachers.filter(t=>{
-    if(unavailable.includes(t.name)) return false;
-    if(t.assignedDates.includes(dateStr)) return false;
-
-    if(slot.type==="flex" && leaveRooms.includes(t.room)) return false;
-
-    if(slot.type==="early7" || slot.type==="morningManager"){
-      const sameRoomEarly = alreadyAssignedToday.some(x =>
-        x.room===t.room && x.assignedEarly7Today===dateStr
-      );
-      if(sameRoomEarly) return false;
-    }
-
-    return true;
-  });
-
-  if(candidates.length===0){
-    candidates = teachers.filter(t=>{
-      if(unavailable.includes(t.name)) return false;
-      if(t.assignedDates.includes(dateStr)) return false;
-      return true;
-    });
-  }
-
-  if(candidates.length===0) return null;
-
-  if(slot.type==="flex"){
-    const preferred = candidates.filter(t=>flexMap[`${dateStr}_${t.name}`]);
-    if(preferred.length>0){
-      preferred.sort((a,b)=>a.totalCount-b.totalCount || a.totalHours-b.totalHours);
-      return preferred[0];
-    }
-  }
-
-  candidates.sort((a,b)=>{
-    let aScore = 0;
-    let bScore = 0;
-
-    aScore += a.totalHours * 100;
-    bScore += b.totalHours * 100;
-
-    aScore += a.totalCount * 8;
-    bScore += b.totalCount * 8;
-
-    if(slot.part==="morning"){
-      aScore += a.morningHours * 20 + a.morningCount * 5;
-      bScore += b.morningHours * 20 + b.morningCount * 5;
-    }
-
-    if(slot.part==="afternoon"){
-      aScore += a.afternoonHours * 25 + a.afternoonCount * 8;
-      bScore += b.afternoonHours * 25 + b.afternoonCount * 8;
-    }
-
-    if(alreadyAssignedToday.some(x=>x.room===a.room)) aScore += 15;
-    if(alreadyAssignedToday.some(x=>x.room===b.room)) bScore += 15;
-
-    if(alreadyAssignedToday.some(x=>x.age===a.age)) aScore += 5;
-    if(alreadyAssignedToday.some(x=>x.age===b.age)) bScore += 5;
-
-    if(a.status==="신입" && alreadyAssignedToday.some(x=>x.status==="신입" && x.room===a.room)) aScore += 80;
-    if(b.status==="신입" && alreadyAssignedToday.some(x=>x.status==="신입" && x.room===b.room)) bScore += 80;
-
-    if(slot.type==="evening" || slot.type==="eveningManager"){
-      if(a.morningManagerCount>0) aScore += 60;
-      if(b.morningManagerCount>0) bScore += 60;
-    }
-
-    if(slot.type==="eveningManager"){
-      aScore += (eveningManagerCounts[a.name] || 0) * 50;
-      bScore += (eveningManagerCounts[b.name] || 0) * 50;
-    }
-
-    aScore += nameHash(a.name + dateStr + slot.key);
-    bScore += nameHash(b.name + dateStr + slot.key);
-
-    return aScore-bScore;
-  });
-
-  return candidates[0];
+function parseTeachers(){
+  return teacherInput.value.trim().split("\n").map(line=>{
+    const parts = line.split(",").map(v=>v.trim());
+    return {
+      age: parts[0],
+      room: parts[1],
+      name: parts[2],
+      status: parts[3] || "일반",
+      morningHours:0,
+      afternoonHours:0,
+      totalHours:0,
+      morningCount:0,
+      afternoonCount:0,
+      totalCount:0,
+      flexCount:0,
+      dutyDates:[],
+      assignedDates:[],
+      morningManagerCount:0
+    };
+  }).filter(t=>t.name);
 }
-
 async function generateSchedule(){
   const monthValue = monthInput.value;
   if(!monthValue) return alert("월을 선택해줘.");
@@ -521,41 +455,52 @@ async function generateSchedule(){
       const teacher = chooseTeacher(teachers, slot, day.dateStr);
 
       if(teacher){
-        row[slot.key] = teacher.name;
+  row[slot.key] = teacher.name;
 
-        teacher.totalHours += slot.hours;
-        teacher.totalCount++;
+  teacher.totalHours += slot.hours;
+  teacher.totalCount++;
 
-        if(slot.part==="morning"){
-          teacher.morningHours += slot.hours;
-          teacher.morningCount++;
-        }
+  if(slot.part==="morning"){
+    teacher.morningHours += slot.hours;
+    teacher.morningCount++;
+  }
 
-        if(slot.part==="afternoon"){
-          teacher.afternoonHours += slot.hours;
-          teacher.afternoonCount++;
-        }
+  if(slot.part==="afternoon"){
+    teacher.afternoonHours += slot.hours;
+    teacher.afternoonCount++;
+  }
 
-        teacher.assignedDates.push(day.dateStr);
+  if(slot.type==="flex"){
+    teacher.flexCount++;
+  }
 
-        const cleanTime = slot.time.replaceAll("<br>"," ");
-        const cleanRole = slot.role ? slot.role.replaceAll("<br>"," ") : slot.room;
-        teacher.dutyDates.push(`${day.day}일(${day.weekday}) ${cleanTime} ${cleanRole}`);
+  teacher.assignedDates.push(day.dateStr);
 
-        if(slot.type==="early7" || slot.type==="morningManager"){
-          teacher.assignedEarly7Today = day.dateStr;
-        }
+  const cleanTime = slot.time.replaceAll("<br>"," ");
+  const cleanRole = slot.role
+    ? slot.role.replaceAll("<br>"," ")
+    : slot.room;
 
-        if(slot.type==="morningManager"){
-          teacher.morningManagerCount++;
-        }
+  teacher.dutyDates.push(
+    `${day.day}일(${day.weekday}) ${cleanTime} ${cleanRole}`
+  );
 
-        if(slot.type==="eveningManager"){
-          eveningManagerCounts[teacher.name] = (eveningManagerCounts[teacher.name] || 0) + 1;
-        }
-      }else{
-        row[slot.key] = "배정불가";
-      }
+  if(slot.type==="early7" || slot.type==="morningManager"){
+    teacher.assignedEarly7Today = day.dateStr;
+  }
+
+  if(slot.type==="morningManager"){
+    teacher.morningManagerCount++;
+  }
+
+  if(slot.type==="eveningManager"){
+    eveningManagerCounts[teacher.name] =
+      (eveningManagerCounts[teacher.name] || 0) + 1;
+  }
+
+}else{
+  row[slot.key] = "배정불가";
+}
     });
 
     finalRows.push(row);
@@ -654,8 +599,12 @@ function ageOrder(age){
 
 function renderStats(teachers){
   const sorted = [...teachers].sort((a,b)=>{
-    if(ageOrder(a.age)!==ageOrder(b.age)) return ageOrder(a.age)-ageOrder(b.age);
-    if(a.room!==b.room) return a.room.localeCompare(b.room,"ko");
+    if(ageOrder(a.age)!==ageOrder(b.age))
+      return ageOrder(a.age)-ageOrder(b.age);
+
+    if(a.room!==b.room)
+      return a.room.localeCompare(b.room,"ko");
+
     return a.name.localeCompare(b.name,"ko");
   });
 
@@ -668,15 +617,17 @@ function renderStats(teachers){
 <th>오전 횟수</th>
 <th>오후 시간</th>
 <th>오후 횟수</th>
+<th>탄력 횟수</th>
 <th>총 시간</th>
 <th>배정 날짜</th>
 </tr>`;
 
   let currentAge = "";
+
   sorted.forEach(t=>{
     if(currentAge!==t.age){
       currentAge=t.age;
-      html += `<tr><td colspan="9" class="group">${t.age}</td></tr>`;
+      html += `<tr><td colspan="10" class="group">${t.age}</td></tr>`;
     }
 
     html += `<tr>
@@ -687,6 +638,7 @@ function renderStats(teachers){
 <td>${t.morningCount}</td>
 <td>${t.afternoonHours}</td>
 <td>${t.afternoonCount}</td>
+<td>${t.flexCount}</td>
 <td>${t.totalHours}</td>
 <td>${t.dutyDates.join("<br>")}</td>
 </tr>`;
@@ -695,7 +647,7 @@ function renderStats(teachers){
   html += `</table>`;
   statsResult.innerHTML = html;
 }
-
+  
 async function saveCurrentSchedule(){
   const month = monthInput.value;
   if(!month || currentSchedule.length===0) return alert("먼저 당직표를 생성해줘.");

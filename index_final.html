@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>탕정삼성어린이집 당직표 생성기</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{font-family:Arial,sans-serif;margin:20px;background:#f5f7fb}
+.header{display:flex;align-items:center;gap:15px;margin-bottom:20px}
+.logo{width:70px;height:70px;object-fit:contain}
+h1{margin:0}
+.box{background:#fff;padding:18px;margin-bottom:18px;border-radius:12px;box-shadow:0 2px 8px #ddd}
+input,select,textarea,button{padding:8px;margin:4px;border-radius:6px;border:1px solid #bbb}
+button{background:#2f6fed;color:white;border:0;font-weight:bold;cursor:pointer}
+button.red{background:#d9534f}
+button.gray{background:#777}
+button.green{background:#2f9e44}
+textarea{width:100%;height:160px;box-sizing:border-box}
+table{width:100%;border-collapse:collapse;margin-top:10px;background:white}
+th,td{border:1px solid #bbb;padding:6px;text-align:center;font-size:12px}
+th{background:#e8eef9}
+.group{background:#dbe6f7;font-weight:bold}
+.hidden{display:none}
+.warn{color:red;font-weight:bold}
+.small{font-size:13px;color:#555}
+.slotHead{font-size:11px;line-height:1.25;min-width:70px}
+.holidayRow td{background:#bfbfbf!important;font-weight:normal;font-size:12px;height:28px;letter-spacing:.5px}
+.weekGap td{background:#d9d9d9!important;height:1px;padding:0;border:0}
+
+.slot-7{background:#f8dfc7!important}
+.slot-730{background:#d9edf7!important}
+.slot-8{background:#dff0d8!important}
+.slot-flex{background:#fff!important}
+.slot-afternoon{background:#fff!important}
+
+#scheduleTable td{height:28px}
+
+#statsTable th:nth-child(1), #statsTable td:nth-child(1){width:6%}
+#statsTable th:nth-child(2), #statsTable td:nth-child(2){width:8%}
+#statsTable th:nth-child(3), #statsTable td:nth-child(3){width:8%}
+#statsTable th:nth-child(4), #statsTable td:nth-child(4),
+#statsTable th:nth-child(5), #statsTable td:nth-child(5),
+#statsTable th:nth-child(6), #statsTable td:nth-child(6),
+#statsTable th:nth-child(7), #statsTable td:nth-child(7),
+#statsTable th:nth-child(8), #statsTable td:nth-child(8),
+#statsTable th:nth-child(9), #statsTable td:nth-child(9){width:6%}
+#statsTable th:nth-child(10), #statsTable td:nth-child(10){
+width:42%;
+text-align:left;
+line-height:1.5;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+<img src="logo.png" class="logo" onerror="this.style.display='none'">
+<div>
+<h1>탕정삼성어린이집 당직표 생성기</h1>
+<div>문의사항: 김혜인 교사</div>
+</div>
+</div>
+
+<div class="box">
+<h2>1. 월 선택</h2>
+<input type="month" id="monthInput">
+<button onclick="generateSchedule()">당직표 생성</button>
+<button class="green" onclick="saveCurrentSchedule()">당직표 저장</button>
+</div>
+
+<div class="box">
+<h2>2. 교사명단</h2>
+<p class="small">형식: 연령, 반, 이름, 신입여부 / 예: 만1세, 햇빛반, 김교사, 신입</p>
+<button class="gray" onclick="toggleTeacherBox()">교사명단 열기/닫기</button>
+<button onclick="saveTeachers()">교사명단 저장</button>
+<div id="teacherBox" class="hidden">
+<textarea id="teacherInput"></textarea>
+</div>
+</div>
+
+<div class="box">
+<h2>3. 연차 입력</h2>
+<input type="date" id="leaveDate">
+<select id="leaveTeacher"></select>
+<button onclick="addLeave()">연차 추가</button>
+<button class="red" onclick="clearLeaves()">전체 삭제</button>
+<div id="leaveList"></div>
+</div>
+
+<div class="box">
+<h2>4. 공휴일 / 제외일 입력</h2>
+<input type="date" id="holidayDate">
+<input type="text" id="holidayReason" placeholder="예: 근로자의 날">
+<button onclick="addHoliday()">추가</button>
+<button class="red" onclick="clearHolidays()">전체 삭제</button>
+<div id="holidayList"></div>
+</div>
+
+<div class="box">
+<h2>5. 행사 / 지정교사 제외</h2>
+<input type="date" id="eventDate">
+<select id="eventTeacher"></select>
+<input type="text" id="eventReason" placeholder="예: 부모참여수업, 외부교육, 회의">
+<button onclick="addEventExclusion()">추가</button>
+<button class="red" onclick="clearEventExclusions()">전체 삭제</button>
+<div id="eventExclusionList"></div>
+</div>
+
+<div class="box">
+<h2>6. 저장된 당직표 조회</h2>
+<select id="savedScheduleSelect"></select>
+<button onclick="loadSavedSchedule()">불러오기</button>
+<button class="red" onclick="deleteSavedSchedule()">삭제</button>
+</div>
+
+<div class="box">
+<h2>당직표</h2>
+<button onclick="downloadScheduleExcel()">엑셀 다운로드</button>
+<div id="scheduleResult"></div>
+</div>
+
+<div class="box">
+<h2>교사별 통계</h2>
+<button onclick="downloadStatsExcel()">엑셀 다운로드</button>
+<div id="statsResult"></div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://ndvysrpxdhlidmowvnpm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FEEilnS9OZv_7R6jTTCe8g_Cc6GabhA";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const DEFAULT_TEACHERS = `만1세, 햇빛반, 김미현
+만1세, 햇빛반, 신지영
+만1세, 햇빛반, 신의주, 신입
+만1세, 달빛반, 김아연
+만1세, 달빛반, 정은비, 신입
+만1세, 별빛반, 김강지
+만1세, 별빛반, 조연희
+만1세, 별빛반, 김가경, 신입
+만1세, 풀빛반, 정호진
+만1세, 풀빛반, 조윤정
+만1세, 풀빛반, 한경빈, 신입
+만1세, 온빛반, 안지영
+만1세, 온빛반, 이선영
+만1세, 온빛반, 임유정, 신입
+만2세, 예빛반, 정치현
+만2세, 예빛반, 이예린
+만2세, 예빛반, 남현서, 신입
+만2세, 봄빛반, 정유미
+만2세, 봄빛반, 박혜원
+만2세, 봄빛반, 오채영, 신입
+만2세, 물빛반, 이윤정
+만2세, 물빛반, 심민지, 신입
+만2세, 꿈빛반, 김혜인
+만2세, 꿈빛반, 차부유
+만2세, 꿈빛반, 공유비, 신입
+만3세, 한빛반, 김아영
+만3세, 한빛반, 양세인
+만3세, 은빛반, 정민진
+만3세, 새빛반, 임현수
+만3세, 새빛반, 임연주, 신입
+만4세, 윤빛반, 김문현
+만4세, 윤빛반, 이지영
+만4세, 윤빛반, 이희수, 신입
+만4세, 꽃빛반, 한지원
+만4세, 꽃빛반, 김수지
+만4세, 꽃빛반, 박지민, 신입
+만5세, 들빛반, 나혜인
+만5세, 솔빛반, 강수진
+만5세, 솔빛반, 유금빈`;
+
+let leaves = [];
+let holidays = [];
+let eventExclusions = [];
+let currentSchedule = [];
+let currentStats = [];
+let savedSchedules = {};
+let eveningManagerCounts = {};
+
+const slots = [
+{key:"m1", room:"햇빛", time:"07:00~09:00<br>(2h)", role:"1층 시건", hours:2, part:"morning", type:"early7"},
+{key:"m2", room:"햇빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터 시건", hours:1.5, part:"morning", type:"morning730"},
+
+{key:"m3", room:"달빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
+{key:"m4", room:"달빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
+{key:"m5", room:"달빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+
+{key:"m6", room:"봄빛", time:"07:00~09:00<br>(2h)", role:"오전책임교사", hours:2, part:"morning", type:"morningManager"},
+{key:"m7", room:"봄빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning", type:"morning730"},
+{key:"m8", room:"봄빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+
+{key:"m9", room:"예빛", time:"08:00~09:00<br>(1h)", role:"8:30까지 봄빛<br>보육 후 분반", hours:1, part:"morning", type:"morning8"},
+
+{key:"m10", room:"새빛", time:"07:00~09:00<br>(2h)", role:"2층 시건", hours:2, part:"morning", type:"early7"},
+{key:"m11", room:"새빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
+{key:"m12", room:"새빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+
+{key:"m13", room:"꽃빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning", type:"morning730"},
+{key:"m14", room:"윤빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터<br>8:30까지 2세<br>봄빛 지원", hours:1.5, part:"morning", type:"morning730"},
+
+{key:"m15", room:"솔빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
+{key:"m16", room:"들빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+
+{key:"a1", room:"통합", time:"18:00~19:00<br>(1h)", role:"18:30부터 빨래정리<br>1·2층 전체 시건", hours:1, part:"afternoon", type:"evening"},
+{key:"a2", room:"통합", time:"18:00~20:00<br>(2h)", role:"오후책임교사", hours:2, part:"afternoon", type:"eveningManager"}
+];
+
+window.onload = async function(){
+  await loadAllSharedData();
+};
+
+async function saveAppData(key, value){
+  const { error } = await supabaseClient
+    .from("app_data")
+    .upsert({ id:key, data:value, updated_at:new Date().toISOString() });
+  if(error) console.error(error);
+}
+
+async function loadAppData(key){
+  const { data, error } = await supabaseClient
+    .from("app_data")
+    .select("*")
+    .eq("id", key)
+    .maybeSingle();
+  if(error) console.error(error);
+  return data ? data.data : null;
+}
+
+async function loadAllSharedData(){
+  const savedTeachers = await loadAppData("teachers");
+  const savedLeaves = await loadAppData("leaves");
+  const savedHolidays = await loadAppData("holidays");
+  const savedEventExclusions = await loadAppData("eventExclusions");
+  const saved = await loadAppData("savedSchedules");
+  const counts = await loadAppData("eveningManagerCounts");
+
+  teacherInput.value = savedTeachers || DEFAULT_TEACHERS;
+  leaves = savedLeaves || [];
+  holidays = savedHolidays || [];
+  eventExclusions = savedEventExclusions || [];
+  savedSchedules = saved || {};
+  eveningManagerCounts = counts || {};
+
+  updateTeacherSelect();
+  renderLeaves();
+  renderHolidays();
+  renderEventExclusions();
+  renderSavedScheduleList();
+}
+
+function toggleTeacherBox(){
+  teacherBox.classList.toggle("hidden");
+}
+
+function parseTeachers(){
+  return teacherInput.value.trim().split("\n").map(line=>{
+    const parts = line.split(",").map(v=>v.trim());
+    return {
+      age: parts[0],
+      room: parts[1],
+      name: parts[2],
+      status: parts[3] || "일반",
+      morningHours:0,
+      afternoonHours:0,
+      totalHours:0,
+      morningCount:0,
+      afternoonCount:0,
+      totalCount:0,
+      flexCount:0,
+      dutyDates:[],
+      assignedDates:[],
+      morningManagerCount:0,
+      eveningManagerCountThisMonth:0
+    };
+  }).filter(t=>t.name);
+}
+
+async function saveTeachers(){
+  await saveAppData("teachers", teacherInput.value);
+  updateTeacherSelect();
+  alert("교사명단이 저장되었습니다.");
+}
+
+function updateTeacherSelect(){
+  const teachers = parseTeachers();
+
+  leaveTeacher.innerHTML = "";
+  teachers.forEach(t=>{
+    const op = document.createElement("option");
+    op.value = t.name;
+    op.textContent = `${t.name} (${t.age} ${t.room}${t.status==="신입" ? ", 신입" : ""})`;
+    leaveTeacher.appendChild(op);
+  });
+
+  if(typeof eventTeacher !== "undefined"){
+    eventTeacher.innerHTML = "";
+    teachers.forEach(t=>{
+      const op = document.createElement("option");
+      op.value = t.name;
+      op.textContent = `${t.name} (${t.age} ${t.room}${t.status==="신입" ? ", 신입" : ""})`;
+      eventTeacher.appendChild(op);
+    });
+  }
+}
+
+async function addLeave(){
+  const date = leaveDate.value;
+  const teacher = leaveTeacher.value;
+  if(!date || !teacher) return alert("날짜와 교사를 선택해줘.");
+  leaves.push({date, teacher});
+  await saveAppData("leaves", leaves);
+  renderLeaves();
+}
+
+async function removeLeave(i){
+  leaves.splice(i,1);
+  await saveAppData("leaves", leaves);
+  renderLeaves();
+}
+
+async function clearLeaves(){
+  if(!confirm("연차를 모두 삭제할까요?")) return;
+  leaves=[];
+  await saveAppData("leaves", leaves);
+  renderLeaves();
+}
+
+function renderLeaves(){
+  let html="<table><tr><th>날짜</th><th>교사</th><th>삭제</th></tr>";
+  leaves.forEach((l,i)=>{
+    html+=`<tr><td>${l.date}</td><td>${l.teacher}</td><td><button class="red" onclick="removeLeave(${i})">삭제</button></td></tr>`;
+  });
+  html+="</table>";
+  leaveList.innerHTML=html;
+}
+
+async function addHoliday(){
+  const date = holidayDate.value;
+  const reason = holidayReason.value;
+  if(!date) return alert("날짜를 선택해줘.");
+  holidays.push({date, reason});
+  await saveAppData("holidays", holidays);
+  renderHolidays();
+}
+
+async function removeHoliday(i){
+  holidays.splice(i,1);
+  await saveAppData("holidays", holidays);
+  renderHolidays();
+}
+
+async function clearHolidays(){
+  if(!confirm("공휴일/제외일을 모두 삭제할까요?")) return;
+  holidays=[];
+  await saveAppData("holidays", holidays);
+  renderHolidays();
+}
+
+function renderHolidays(){
+  let html="<table><tr><th>날짜</th><th>사유</th><th>삭제</th></tr>";
+  holidays.forEach((h,i)=>{
+    html+=`<tr><td>${h.date}</td><td>${h.reason||""}</td><td><button class="red" onclick="removeHoliday(${i})">삭제</button></td></tr>`;
+  });
+  html+="</table>";
+  holidayList.innerHTML=html;
+}
+
+async function addEventExclusion(){
+  const date = eventDate.value;
+  const teacher = eventTeacher.value;
+  const reason = eventReason.value;
+
+  if(!date || !teacher) return alert("날짜와 교사를 선택해줘.");
+
+  eventExclusions.push({date, teacher, reason});
+  await saveAppData("eventExclusions", eventExclusions);
+  renderEventExclusions();
+}
+
+async function removeEventExclusion(i){
+  eventExclusions.splice(i,1);
+  await saveAppData("eventExclusions", eventExclusions);
+  renderEventExclusions();
+}
+
+async function clearEventExclusions(){
+  if(!confirm("행사/지정교사 제외를 모두 삭제할까요?")) return;
+  eventExclusions = [];
+  await saveAppData("eventExclusions", eventExclusions);
+  renderEventExclusions();
+}
+
+function renderEventExclusions(){
+  let html="<table><tr><th>날짜</th><th>교사</th><th>사유</th><th>삭제</th></tr>";
+
+  eventExclusions.forEach((e,i)=>{
+    html += `<tr>
+<td>${e.date}</td>
+<td>${e.teacher}</td>
+<td>${e.reason || ""}</td>
+<td><button class="red" onclick="removeEventExclusion(${i})">삭제</button></td>
+</tr>`;
+  });
+
+  html += "</table>";
+  eventExclusionList.innerHTML = html;
+}
+
+function getWeekday(date){
+  return ["일","월","화","수","목","금","토"][date.getDay()];
+}
+
+function isHolidayDate(dateStr){
+  return holidays.some(h=>h.date===dateStr);
+}
+
+function getPreviousDateStr(dateStr){
+  const d = new Date(dateStr);
+  d.setDate(d.getDate()-1);
+  return d.toISOString().slice(0,10);
+}
+
+function isWeekdayDate(dateStr){
+  const d = new Date(dateStr);
+  return d.getDay()>=1 && d.getDay()<=5;
+}
+
+function getPreviousWorkDateStr(dateStr){
+  const d = new Date(dateStr);
+
+  while(true){
+    d.setDate(d.getDate()-1);
+    const prev = d.toISOString().slice(0,10);
+    const day = d.getDay();
+
+    if(day>=1 && day<=5 && !isHolidayDate(prev)){
+      return prev;
+    }
+  }
+}
+
+function getTeacherLeavePreviousFlexMap(){
+  const map = {};
+  leaves.forEach(l=>{
+    const prev = getPreviousDateStr(l.date);
+    if(isWeekdayDate(prev) && !isHolidayDate(prev)){
+      map[`${prev}_${l.teacher}`] = true;
+    }
+  });
+  return map;
+}
+
+function getMonthDates(monthValue){
+  const [year, month] = monthValue.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const dates = [];
+
+  for(let d=1; d<=lastDay; d++){
+    const date = new Date(year, month-1, d);
+    const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const weekday = getWeekday(date);
+    const holiday = holidays.find(h=>h.date===dateStr);
+
+    if(weekday !== "토" && weekday !== "일"){
+      dates.push({
+        dateStr,
+        day:d,
+        weekday,
+        isHoliday:!!holiday,
+        holidayReason:holiday ? holiday.reason : ""
+      });
+    }
+  }
+  return dates;
+}
+
+function getLeaveRoomsOnDate(dateStr, teachers){
+  const leaveNames = leaves.filter(l=>l.date===dateStr).map(l=>l.teacher);
+  return teachers.filter(t=>leaveNames.includes(t.name)).map(t=>t.room);
+}
+
+function nameHash(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++){
+    h = (h * 31 + str.charCodeAt(i)) % 1000;
+  }
+  return h / 1000;
+}
+
+function chooseTeacher(teachers, slot, dateStr){
+  const unavailable = leaves.filter(l=>l.date===dateStr).map(l=>l.teacher);
+  const eventUnavailable = eventExclusions.filter(e=>e.date===dateStr).map(e=>e.teacher);
+  const alreadyAssignedToday = teachers.filter(t=>t.assignedDates.includes(dateStr));
+  const flexMap = getTeacherLeavePreviousFlexMap();
+  const leaveRooms = getLeaveRoomsOnDate(dateStr, teachers);
+  const prevWorkDate = getPreviousWorkDateStr(dateStr);
+
+  let candidates = teachers.filter(t=>{
+    if(unavailable.includes(t.name)) return false;
+    if(eventUnavailable.includes(t.name)) return false;
+    if(t.assignedDates.includes(dateStr)) return false;
+
+    if(t.assignedDates.includes(prevWorkDate)) return false;
+
+    if(slot.type==="flex" && t.flexCount >= 3) return false;
+
+    if(slot.type==="evening" && t.eveningManagerCountThisMonth > 0) return false;
+
+    if(slot.type==="flex" && leaveRooms.includes(t.room)) return false;
+
+    if(slot.type==="early7" || slot.type==="morningManager"){
+      const sameRoomEarly = alreadyAssignedToday.some(x =>
+        x.room===t.room && x.assignedEarly7Today===dateStr
+      );
+      if(sameRoomEarly) return false;
+    }
+
+    return true;
+  });
+
+  if(candidates.length===0){
+    candidates = teachers.filter(t=>{
+      if(unavailable.includes(t.name)) return false;
+      if(eventUnavailable.includes(t.name)) return false;
+      if(t.assignedDates.includes(dateStr)) return false;
+      return true;
+    });
+  }
+
+  if(candidates.length===0) return null;
+
+  if(slot.type==="flex"){
+    const preferred = candidates.filter(t =>
+      flexMap[`${dateStr}_${t.name}`] && t.flexCount < 3
+    );
+
+    if(preferred.length>0){
+      preferred.sort((a,b)=>a.flexCount-b.flexCount || a.totalHours-b.totalHours);
+      return preferred[0];
+    }
+  }
+
+  candidates.sort((a,b)=>{
+    let aScore = 0;
+    let bScore = 0;
+
+    aScore += a.totalHours * 100;
+    bScore += b.totalHours * 100;
+
+    aScore += a.totalCount * 8;
+    bScore += b.totalCount * 8;
+
+    if(slot.part==="morning"){
+      aScore += a.morningHours * 20 + a.morningCount * 5;
+      bScore += b.morningHours * 20 + b.morningCount * 5;
+    }
+
+    if(slot.part==="afternoon"){
+      aScore += a.afternoonHours * 25 + a.afternoonCount * 8;
+      bScore += b.afternoonHours * 25 + b.afternoonCount * 8;
+    }
+
+    if(slot.type==="flex"){
+      if(a.flexCount < 2) aScore -= 300;
+      if(b.flexCount < 2) bScore -= 300;
+
+      aScore += a.flexCount * 120;
+      bScore += b.flexCount * 120;
+    }
+
+    if(alreadyAssignedToday.some(x=>x.room===a.room)) aScore += 15;
+    if(alreadyAssignedToday.some(x=>x.room===b.room)) bScore += 15;
+
+    if(alreadyAssignedToday.some(x=>x.age===a.age)) aScore += 5;
+    if(alreadyAssignedToday.some(x=>x.age===b.age)) bScore += 5;
+
+    if(a.status==="신입" && alreadyAssignedToday.some(x=>x.status==="신입" && x.room===a.room)) aScore += 80;
+    if(b.status==="신입" && alreadyAssignedToday.some(x=>x.status==="신입" && x.room===b.room)) bScore += 80;
+
+    if(slot.type==="evening" || slot.type==="eveningManager"){
+      if(a.morningManagerCount>0) aScore += 60;
+      if(b.morningManagerCount>0) bScore += 60;
+    }
+
+    if(slot.type==="eveningManager"){
+      aScore += (eveningManagerCounts[a.name] || 0) * 50;
+      bScore += (eveningManagerCounts[b.name] || 0) * 50;
+    }
+
+    aScore += nameHash(a.name + dateStr + slot.key);
+    bScore += nameHash(b.name + dateStr + slot.key);
+
+    return aScore-bScore;
+  });
+
+  return candidates[0];
+}
+
+async function generateSchedule(){
+  const monthValue = monthInput.value;
+  if(!monthValue) return alert("월을 선택해줘.");
+
+  const teachers = parseTeachers();
+  const dates = getMonthDates(monthValue);
+  const finalRows = [];
+
+  dates.forEach(day=>{
+    const row = {
+      dateStr:day.dateStr,
+      day:day.day,
+      weekday:day.weekday,
+      isHoliday:day.isHoliday,
+      holidayReason:day.holidayReason
+    };
+
+    if(day.isHoliday){
+      finalRows.push(row);
+      return;
+    }
+
+    slots.forEach(slot=>{
+      const teacher = chooseTeacher(teachers, slot, day.dateStr);
+
+      if(teacher){
+        row[slot.key] = teacher.name;
+
+        teacher.totalHours += slot.hours;
+        teacher.totalCount++;
+
+        if(slot.part==="morning"){
+          teacher.morningHours += slot.hours;
+          teacher.morningCount++;
+        }
+
+        if(slot.part==="afternoon"){
+          teacher.afternoonHours += slot.hours;
+          teacher.afternoonCount++;
+        }
+
+        if(slot.type==="flex"){
+          teacher.flexCount++;
+        }
+
+        teacher.assignedDates.push(day.dateStr);
+
+        const cleanTime = slot.time.replaceAll("<br>"," ");
+        const cleanRole = slot.role ? slot.role.replaceAll("<br>"," ") : slot.room;
+        teacher.dutyDates.push(`${day.day}일(${day.weekday}) ${cleanTime} ${cleanRole}`);
+
+        if(slot.type==="early7" || slot.type==="morningManager"){
+          teacher.assignedEarly7Today = day.dateStr;
+        }
+
+        if(slot.type==="morningManager"){
+          teacher.morningManagerCount++;
+        }
+
+        if(slot.type==="eveningManager"){
+          teacher.eveningManagerCountThisMonth++;
+          eveningManagerCounts[teacher.name] =
+            (eveningManagerCounts[teacher.name] || 0) + 1;
+        }
+      }else{
+        row[slot.key] = "배정불가";
+      }
+    });
+
+    finalRows.push(row);
+  });
+
+  currentSchedule = finalRows;
+  currentStats = teachers;
+
+  await saveAppData("eveningManagerCounts", eveningManagerCounts);
+
+  renderSchedule(finalRows);
+  renderStats(teachers);
+}
+
+function slotClass(s){
+  if(s.time.includes("07:00")) return "slot-7";
+  if(s.time.includes("07:30")) return "slot-730";
+  if(s.time.includes("08:00")) return "slot-8";
+  if(s.time.includes("08:30")) return "slot-flex";
+  return "slot-afternoon";
+}
+
+function renderSchedule(rows){
+  let html = `<table id="scheduleTable">
+<tr>
+<th rowspan="5">일</th>
+<th rowspan="5">요일</th>
+<th colspan="16">오전</th>
+<th colspan="2">오후</th>
+</tr>
+<tr>
+<th colspan="9">영아</th>
+<th colspan="7">유아</th>
+<th colspan="2">통합</th>
+</tr>
+<tr>
+<th colspan="5">만1세</th>
+<th colspan="4">만2세</th>
+<th colspan="3">만3세</th>
+<th colspan="2">만4세</th>
+<th colspan="2">만5세</th>
+<th colspan="2">통합</th>
+</tr>
+<tr>
+<th colspan="2">햇빛</th>
+<th colspan="3">달빛</th>
+<th colspan="3">봄빛</th>
+<th>예빛</th>
+<th colspan="3">새빛</th>
+<th>꽃빛</th>
+<th>윤빛</th>
+<th>솔빛</th>
+<th>들빛</th>
+<th>18:00~19:00</th>
+<th>18:00~20:00</th>
+</tr>
+<tr>
+${slots.map(s=>`<th class="slotHead ${slotClass(s)}">${s.time}<br>${s.role}</th>`).join("")}
+</tr>`;
+
+  let prevWeekday = "";
+
+  rows.forEach(r=>{
+    if(prevWeekday==="금"){
+      html += `<tr class="weekGap"><td colspan="20"></td></tr>`;
+    }
+    prevWeekday = r.weekday;
+
+    if(r.isHoliday){
+      html += `<tr class="holidayRow">
+<td>${r.day}</td>
+<td>${r.weekday}</td>
+<td colspan="18">${r.holidayReason || "공휴일/제외일"}</td>
+</tr>`;
+      return;
+    }
+
+    html += `<tr>
+<td>${r.day}</td>
+<td>${r.weekday}</td>
+${slots.map(s=>`<td class="${slotClass(s)}">${cell(r[s.key])}</td>`).join("")}
+</tr>`;
+  });
+
+  html += `</table>`;
+  scheduleResult.innerHTML = html;
+}
+
+function cell(v){
+  return v==="배정불가" ? `<span class="warn">배정불가</span>` : (v||"");
+}
+
+function ageOrder(age){
+  return {"만1세":1,"만2세":2,"만3세":3,"만4세":4,"만5세":5}[age] || 99;
+}
+
+function renderStats(teachers){
+  const sorted = [...teachers].sort((a,b)=>{
+    if(ageOrder(a.age)!==ageOrder(b.age)) return ageOrder(a.age)-ageOrder(b.age);
+    if(a.room!==b.room) return a.room.localeCompare(b.room,"ko");
+    return a.name.localeCompare(b.name,"ko");
+  });
+
+  let html = `<table id="statsTable">
+<tr>
+<th>연령</th>
+<th>반</th>
+<th>교사</th>
+<th>오전 시간</th>
+<th>오전 횟수</th>
+<th>오후 시간</th>
+<th>오후 횟수</th>
+<th>탄력 횟수</th>
+<th>총 시간</th>
+<th>배정 날짜</th>
+</tr>`;
+
+  let currentAge = "";
+  sorted.forEach(t=>{
+    if(currentAge!==t.age){
+      currentAge=t.age;
+      html += `<tr><td colspan="10" class="group">${t.age}</td></tr>`;
+    }
+
+    html += `<tr>
+<td>${t.age}</td>
+<td>${t.room}</td>
+<td>${t.name}</td>
+<td>${t.morningHours}</td>
+<td>${t.morningCount}</td>
+<td>${t.afternoonHours}</td>
+<td>${t.afternoonCount}</td>
+<td>${t.flexCount}</td>
+<td>${t.totalHours}</td>
+<td>${t.dutyDates.join("<br>")}</td>
+</tr>`;
+  });
+
+  html += `</table>`;
+  statsResult.innerHTML = html;
+}
+
+async function saveCurrentSchedule(){
+  const month = monthInput.value;
+  if(!month || currentSchedule.length===0) return alert("먼저 당직표를 생성해줘.");
+
+  savedSchedules[month] = {
+    schedule:currentSchedule,
+    stats:currentStats,
+    savedAt:new Date().toLocaleString()
+  };
+
+  await saveAppData("savedSchedules", savedSchedules);
+  renderSavedScheduleList();
+  alert(`${month} 당직표가 저장되었습니다.`);
+}
+
+function renderSavedScheduleList(){
+  savedScheduleSelect.innerHTML = "";
+  Object.keys(savedSchedules).sort().forEach(month=>{
+    const op = document.createElement("option");
+    op.value = month;
+    op.textContent = `${month} 저장본`;
+    savedScheduleSelect.appendChild(op);
+  });
+}
+
+function loadSavedSchedule(){
+  const month = savedScheduleSelect.value;
+  if(!month) return alert("저장된 당직표가 없습니다.");
+
+  currentSchedule = savedSchedules[month].schedule;
+  currentStats = savedSchedules[month].stats;
+
+  monthInput.value = month;
+  renderSchedule(currentSchedule);
+  renderStats(currentStats);
+}
+
+async function deleteSavedSchedule(){
+  const month = savedScheduleSelect.value;
+  if(!month) return;
+  if(!confirm(`${month} 저장본을 삭제할까요?`)) return;
+
+  delete savedSchedules[month];
+  await saveAppData("savedSchedules", savedSchedules);
+  renderSavedScheduleList();
+}
+
+function downloadTableAsExcel(tableId, filename){
+  const table = document.getElementById(tableId);
+  if(!table) return alert("다운로드할 내용이 없습니다.");
+
+  const html = `<html><head><meta charset="UTF-8"></head><body>${table.outerHTML}</body></html>`;
+  const blob = new Blob([html], {type:"application/vnd.ms-excel;charset=utf-8;"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename + ".xls";
+  link.click();
+}
+
+function downloadScheduleExcel(){
+  downloadTableAsExcel("scheduleTable","당직표");
+}
+
+function downloadStatsExcel(){
+  downloadTableAsExcel("statsTable","교사별통계");
+}
+</script>
+
+</body>
+</html>

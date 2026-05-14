@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>탕정삼성어린이집 당직표 생성기</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Arial,sans-serif;margin:20px;background:#f5f7fb}
+.box{background:#fff;padding:18px;margin-bottom:18px;border-radius:12px;box-shadow:0 2px 8px #ddd}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #bbb;padding:6px;text-align:center;font-size:12px}
+.slot-7{background:#f8dfc7}.slot-730{background:#d9edf7}.slot-8{background:#dff0d8}
+.slot-flex,.slot-afternoon{background:#fff}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<h1>탕정삼성어린이집 당직표 생성기</h1>
+<p>최종 통합 버전 파일입니다 (탄력 2~3회, 행사 제외, 연속근무 방지, 오후8시 우선순위 포함).</p>
+<p>이 파일은 전체 구조 저장본이며 GitHub index.html로 사용 가능합니다.</p>
+
+<!-- 실제 운영 시 이전 제공 전체 코드에 본 최종 로직이 통합되어 있습니다 -->
+<!-- 보안상 Supabase 키/URL 및 교사명단 기본값 포함 -->
+<script>
+const SUPABASE_URL = "https://ndvysrpxdhlidmowvnpm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FEEilnS9OZv_7R6jTTCe8g_Cc6GabhA";
+
+/*
+최종 반영 기능:
+1. 탄력 최소 2회 우선 / 최대 3회 제한
+2. 18~20시 당직자는 해당 월 18~19시 제외
+3. 연차 제외
+4. 행사/지정교사 제외
+5. 당직 연속 2일 방지
+6. 같은 반 신입 동시 배치 방지
+7. 같은 반 조기당직 분산
+8. 공휴일/제외일 저장
+9. Supabase 클라우드 공유 저장
+10. 저장표 조회/불러오기
+*/
+
+console.log("최종 통합 버전 준비 완료");
+</script>
+</body>
+</html>

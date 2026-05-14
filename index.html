@@ -523,14 +523,18 @@ function chooseTeacher(teachers, slot, dateStr){
   });
 
   if(candidates.length===0){
-    candidates = teachers.filter(t=>{
-      if(unavailable.includes(t.name)) return false;
-      if(eventUnavailable.includes(t.name)) return false;
-      if(t.assignedDates.includes(dateStr)) return false;
-      return true;
-    });
-  }
+  candidates = teachers.filter(t=>{
+    if(unavailable.includes(t.name)) return false;
+    if(eventUnavailable.includes(t.name)) return false;
+    if(t.assignedDates.includes(dateStr)) return false;
 
+    if(slot.type==="eveningManager" && t.eveningManagerCountThisMonth >= 1) return false;
+    if(slot.type==="evening" && t.eveningManagerCountThisMonth > 0) return false;
+
+    return true;
+  });
+}
+  
   if(candidates.length===0) return null;
 
   if(slot.type==="flex"){

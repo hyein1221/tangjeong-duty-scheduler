@@ -4,21 +4,6 @@
 <meta charset="UTF-8">
 <title>탕정삼성어린이집 당직표 생성기</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState==="visible"){
-    refreshSavedSchedules(false);
-  }
-});
-
-window.addEventListener("focus", ()=>{
-  refreshSavedSchedules(false);
-});
-
-setInterval(()=>{
-  if(document.visibilityState==="visible"){
-    refreshSavedSchedules(false);
-  }
-}, 60000);
 
 </script>
 
@@ -52,6 +37,40 @@ th{background:#e8eef9}
 .slot-afternoon{background:#fff!important}
 
 #scheduleTable td{height:28px}
+
+.leave-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:10px}
+.teacher-check-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:8px;
+  margin:12px 0;
+  padding:12px;
+  background:#f8fafc;
+  border:1px solid #d9e1ec;
+  border-radius:10px;
+}
+.teacher-check-item{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 9px;
+  background:white;
+  border:1px solid #d8dee8;
+  border-radius:7px;
+  cursor:pointer;
+}
+.teacher-check-item input{margin:0}
+.teacher-check-group{
+  grid-column:1/-1;
+  padding:6px 4px 2px;
+  font-weight:bold;
+  color:#2f4f7f;
+  border-bottom:1px solid #d9e1ec;
+}
+#leaveSaveStatus{margin:6px 0 10px;font-weight:bold}
+.status-saving{color:#b26a00}
+.status-saved{color:#2f9e44}
+.status-error{color:#d9534f}
 
 #statsTable th:nth-child(1), #statsTable td:nth-child(1){width:6%}
 #statsTable th:nth-child(2), #statsTable td:nth-child(2){width:8%}
@@ -99,10 +118,19 @@ line-height:1.5;
 
 <div class="box">
 <h2>3. 연차 입력</h2>
-<input type="date" id="leaveDate">
-<select id="leaveTeacher"></select>
-<button onclick="addLeave()">연차 추가</button>
-<button class="red" onclick="clearLeaves()">전체 삭제</button>
+<p class="small">날짜를 선택한 뒤 연차 교사를 여러 명 체크하여 한 번에 등록할 수 있습니다.</p>
+
+<div class="leave-toolbar">
+  <input type="date" id="leaveDate" onchange="renderLeaveTeacherChecks()">
+  <button class="gray" onclick="selectAllLeaveTeachers(true)">전체 선택</button>
+  <button class="gray" onclick="selectAllLeaveTeachers(false)">전체 해제</button>
+  <button onclick="addMultipleLeaves()">선택 교사 연차 일괄등록</button>
+  <button class="green" onclick="saveLeavesToServer()">연차 서버 저장</button>
+  <button class="red" onclick="clearLeaves()">전체 삭제</button>
+</div>
+
+<div id="leaveTeacherChecks" class="teacher-check-grid"></div>
+<div id="leaveSaveStatus" class="small"></div>
 <div id="leaveList"></div>
 </div>
 
@@ -150,8 +178,9 @@ const SUPABASE_URL = "https://ndvysrpxdhlidmowvnpm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FEEilnS9OZv_7R6jTTCe8g_Cc6GabhA";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const DEFAULT_TEACHERS = `만1세, 햇빛반, 신지영
-만1세, 햇빛반, 신의주
+const DEFAULT_TEACHERS = `만1세, 햇빛반, 김미현
+만1세, 햇빛반, 신지영
+만1세, 햇빛반, 신의주, 신입
 만1세, 달빛반, 김아연
 만1세, 달빛반, 정은비, 신입
 만1세, 별빛반, 김강지
@@ -169,13 +198,13 @@ const DEFAULT_TEACHERS = `만1세, 햇빛반, 신지영
 만2세, 봄빛반, 정유미
 만2세, 봄빛반, 박혜원
 만2세, 봄빛반, 오채영, 신입
-만2세, 물빛반, 주화정
+만2세, 물빛반, 이윤정
 만2세, 물빛반, 심민지, 신입
 만2세, 꿈빛반, 김혜인
 만2세, 꿈빛반, 차부유
 만2세, 꿈빛반, 공유비, 신입
 만3세, 한빛반, 김아영
-만3세, 한빛반, 정혜림
+만3세, 한빛반, 양세인
 만3세, 은빛반, 정민진
 만3세, 새빛반, 임현수
 만3세, 새빛반, 임연주, 신입
@@ -266,43 +295,57 @@ async function loadAppData(key){
 
 async function loadAllSharedData(){
   try{
-    const [
-      savedTeachers,
-      savedLeaves,
-      savedHolidays,
-      savedEventExclusions,
-      saved,
-      counts
-    ] = await Promise.all([
-      loadAppData("teachers"),
-      loadAppData("leaves"),
-      loadAppData("holidays"),
-      loadAppData("eventExclusions"),
-      loadAppData("savedSchedules"),
-      loadAppData("eveningManagerCounts")
-    ]);
+    const { data, error } = await supabaseClient
+      .from("app_data")
+      .select("id,data")
+      .in("id", [
+        "teachers",
+        "leaves",
+        "holidays",
+        "eventExclusions",
+        "savedSchedules",
+        "eveningManagerCounts"
+      ]);
 
-    teacherInput.value = savedTeachers || DEFAULT_TEACHERS;
-    leaves = savedLeaves || [];
-    holidays = savedHolidays || [];
-    eventExclusions = savedEventExclusions || [];
-    savedSchedules = saved || {};
-    eveningManagerCounts = counts || {};
+    if(error) throw error;
+
+    const map = {};
+    (data || []).forEach(row=>{
+      map[row.id] = row.data;
+    });
+
+    teacherInput.value = map.teachers || DEFAULT_TEACHERS;
+    leaves = map.leaves || [];
+    holidays = map.holidays || [];
+    eventExclusions = map.eventExclusions || [];
+    savedSchedules = map.savedSchedules || {};
+    eveningManagerCounts = map.eveningManagerCounts || {};
 
     updateTeacherSelect();
+    renderLeaveTeacherChecks();
     renderLeaves();
     renderHolidays();
     renderEventExclusions();
     renderSavedScheduleList();
   }catch(error){
-    console.error(error);
+    console.error("공용 데이터 불러오기 실패:", error);
+
     teacherInput.value = DEFAULT_TEACHERS;
+    leaves = [];
+    holidays = [];
+    eventExclusions = [];
+    savedSchedules = {};
+    eveningManagerCounts = {};
+
     updateTeacherSelect();
+    renderLeaveTeacherChecks();
     renderLeaves();
     renderHolidays();
     renderEventExclusions();
     renderSavedScheduleList();
-    alert("공용 데이터를 불러오지 못했습니다. 인터넷 연결 또는 Supabase 설정을 확인해 주세요.");
+
+    const detail = error && error.message ? `\n오류: ${error.message}` : "";
+    alert("공용 데이터를 불러오지 못했습니다. 인터넷 연결 또는 Supabase 설정을 확인해 주세요." + detail);
   }
 }
 
@@ -334,21 +377,19 @@ function parseTeachers(){
 }
 
 async function saveTeachers(){
-  await saveAppData("teachers", teacherInput.value);
-  updateTeacherSelect();
-  alert("교사명단이 저장되었습니다.");
+  try{
+    await saveAppData("teachers", teacherInput.value);
+    updateTeacherSelect();
+    renderLeaveTeacherChecks();
+    alert("교사명단이 저장되었습니다.");
+  }catch(error){
+    console.error("교사명단 저장 실패:", error);
+    alert("교사명단 저장에 실패했습니다.");
+  }
 }
 
 function updateTeacherSelect(){
   const teachers = parseTeachers();
-
-  leaveTeacher.innerHTML = "";
-  teachers.forEach(t=>{
-    const op = document.createElement("option");
-    op.value = t.name;
-    op.textContent = `${t.name} (${t.age} ${t.room}${t.status==="신입" ? ", 신입" : ""})`;
-    leaveTeacher.appendChild(op);
-  });
 
   if(typeof eventTeacher !== "undefined"){
     eventTeacher.innerHTML = "";
@@ -359,28 +400,137 @@ function updateTeacherSelect(){
       eventTeacher.appendChild(op);
     });
   }
+
+  renderLeaveTeacherChecks();
 }
 
-async function addLeave(){
+function renderLeaveTeacherChecks(){
+  const container = document.getElementById("leaveTeacherChecks");
+  if(!container) return;
+
+  const teachers = parseTeachers();
+  const grouped = {};
+
+  teachers.forEach(t=>{
+    const key = `${t.age} ${t.room}`;
+    if(!grouped[key]) grouped[key] = [];
+    grouped[key].push(t);
+  });
+
+  let html = "";
+
+  Object.keys(grouped).forEach(groupName=>{
+    html += `<div class="teacher-check-group">${groupName}</div>`;
+
+    grouped[groupName].forEach(t=>{
+      const id = `leaveCheck_${encodeURIComponent(t.name)}`;
+      html += `
+        <label class="teacher-check-item" for="${id}">
+          <input
+            type="checkbox"
+            class="leave-teacher-check"
+            id="${id}"
+            value="${t.name}">
+          <span>${t.name}${t.status==="신입" ? " · 신입" : ""}</span>
+        </label>`;
+    });
+  });
+
+  container.innerHTML = html;
+}
+
+function selectAllLeaveTeachers(checked){
+  document.querySelectorAll(".leave-teacher-check").forEach(cb=>{
+    cb.checked = checked;
+  });
+}
+
+function setLeaveSaveStatus(message, type=""){
+  const el = document.getElementById("leaveSaveStatus");
+  if(!el) return;
+
+  el.textContent = message;
+  el.className = "small";
+
+  if(type==="saving") el.classList.add("status-saving");
+  if(type==="saved") el.classList.add("status-saved");
+  if(type==="error") el.classList.add("status-error");
+}
+
+function addMultipleLeaves(){
   const date = leaveDate.value;
-  const teacher = leaveTeacher.value;
-  if(!date || !teacher) return alert("날짜와 교사를 선택해줘.");
-  leaves.push({date, teacher});
-  await saveAppData("leaves", leaves);
+  const checked = [...document.querySelectorAll(".leave-teacher-check:checked")];
+  const names = checked.map(cb=>cb.value);
+
+  if(!date) return alert("연차 날짜를 선택해줘.");
+  if(names.length===0) return alert("연차 교사를 한 명 이상 체크해줘.");
+
+  let addedCount = 0;
+  let duplicateCount = 0;
+
+  names.forEach(name=>{
+    const exists = leaves.some(l=>l.date===date && l.teacher===name);
+
+    if(exists){
+      duplicateCount++;
+      return;
+    }
+
+    leaves.push({date, teacher:name});
+    addedCount++;
+  });
+
+  leaves.sort((a,b)=>
+    a.date.localeCompare(b.date) ||
+    a.teacher.localeCompare(b.teacher, "ko")
+  );
+
   renderLeaves();
+  selectAllLeaveTeachers(false);
+
+  setLeaveSaveStatus(
+    `화면에 ${addedCount}명 추가됨${duplicateCount ? ` · 중복 ${duplicateCount}명 제외` : ""}. 서버 저장 버튼을 눌러주세요.`,
+    "saving"
+  );
 }
 
-async function removeLeave(i){
+async function saveLeavesToServer(){
+  const button = event && event.target ? event.target : null;
+  const originalText = button ? button.textContent : "";
+
+  try{
+    if(button){
+      button.disabled = true;
+      button.textContent = "저장 중...";
+    }
+
+    setLeaveSaveStatus("연차 목록을 서버에 저장하고 있습니다...", "saving");
+    await saveAppData("leaves", leaves);
+    setLeaveSaveStatus(`연차 ${leaves.length}건이 서버에 저장되었습니다.`, "saved");
+    alert("연차 목록이 공용 서버에 저장되었습니다.");
+  }catch(error){
+    console.error("연차 저장 실패:", error);
+    setLeaveSaveStatus("연차 서버 저장에 실패했습니다.", "error");
+    alert("연차 목록을 저장하지 못했습니다. 인터넷 연결 또는 Supabase 설정을 확인해 주세요.");
+  }finally{
+    if(button){
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+function removeLeave(i){
   leaves.splice(i,1);
-  await saveAppData("leaves", leaves);
   renderLeaves();
+  setLeaveSaveStatus("연차 목록이 변경되었습니다. 서버 저장 버튼을 눌러주세요.", "saving");
 }
 
-async function clearLeaves(){
+function clearLeaves(){
   if(!confirm("연차를 모두 삭제할까요?")) return;
   leaves=[];
-  await saveAppData("leaves", leaves);
   renderLeaves();
+  setLeaveSaveStatus("연차 목록이 모두 삭제되었습니다. 서버 저장 버튼을 눌러야 공용 데이터에 반영됩니다.", "saving");
 }
 
 function renderLeaves(){

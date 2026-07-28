@@ -3,7 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <title>탕정삼성어린이집 당직표 생성기</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="visible"){
+    refreshSavedSchedules(false);
+  }
+});
+
+window.addEventListener("focus", ()=>{
+  refreshSavedSchedules(false);
+});
+
+setInterval(()=>{
+  if(document.visibilityState==="visible"){
+    refreshSavedSchedules(false);
+  }
+}, 60000);
+
+</script>
 
 <style>
 body{font-family:Arial,sans-serif;margin:20px;background:#f5f7fb}
@@ -112,6 +129,7 @@ line-height:1.5;
 <h2>6. 저장된 당직표 조회</h2>
 <select id="savedScheduleSelect"></select>
 <button onclick="loadSavedSchedule()">불러오기</button>
+<button class="gray" onclick="refreshSavedSchedules(true)">목록 새로고침</button>
 <button class="red" onclick="deleteSavedSchedule()">삭제</button>
 </div>
 
@@ -183,29 +201,29 @@ let eveningManagerCounts = {};
 const slots = [
 {key:"m1", room:"햇빛", time:"07:00~09:00<br>(2h)", role:"1층 시건", hours:2, part:"morning", type:"early7"},
 {key:"m2", room:"햇빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터 시건", hours:1.5, part:"morning", type:"morning730"},
+{key:"m3", room:"햇빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
 
-{key:"m3", room:"달빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
-{key:"m4", room:"달빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
-{key:"m5", room:"달빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+{key:"m4", room:"달빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
 
-{key:"m6", room:"봄빛", time:"07:00~09:00<br>(2h)", role:"오전책임교사", hours:2, part:"morning", type:"morningManager"},
-{key:"m7", room:"봄빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning", type:"morning730"},
-{key:"m8", room:"봄빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+{key:"m5", room:"봄빛", time:"07:00~09:00<br>(2h)", role:"오전책임교사", hours:2, part:"morning", type:"morningManager"},
+{key:"m6", room:"봄빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning", type:"morning730"},
+{key:"m7", room:"봄빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터 시건", hours:1.5, part:"morning", type:"morning730"},
 
-{key:"m9", room:"예빛", time:"08:00~09:00<br>(1h)", role:"8:30까지 봄빛<br>보육 후 분반", hours:1, part:"morning", type:"morning8"},
+{key:"m8", room:"예빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
+{key:"m9", room:"예빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
 
 {key:"m10", room:"새빛", time:"07:00~09:00<br>(2h)", role:"2층 시건", hours:2, part:"morning", type:"early7"},
 {key:"m11", room:"새빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
 {key:"m12", room:"새빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
 
 {key:"m13", room:"꽃빛", time:"07:30~09:00<br>(1.5h)", role:"", hours:1.5, part:"morning", type:"morning730"},
-{key:"m14", room:"윤빛", time:"07:30~09:00<br>(1.5h)", role:"놀이터<br>8:30까지 2세<br>봄빛 지원", hours:1.5, part:"morning", type:"morning730"},
+{key:"m14", room:"윤빛", time:"08:30~09:00<br>(0.5h)", role:"", hours:0.5, part:"morning", type:"morning830"},
 
 {key:"m15", room:"솔빛", time:"08:00~09:00<br>(1h)", role:"", hours:1, part:"morning", type:"morning8"},
-{key:"m16", room:"들빛", time:"08:30~17:30", role:"탄력", hours:0, part:"flex", type:"flex"},
+{key:"m16", room:"들빛", time:"08:30~09:00<br>(0.5h)", role:"탄력", hours:0, part:"flex", type:"flex"},
 
-{key:"a1", room:"통합", time:"18:00~19:00<br>(1h)", role:"18:30부터 빨래정리<br>1·2층 전체 시건", hours:1, part:"afternoon", type:"evening"},
-{key:"a2", room:"통합", time:"18:00~20:00<br>(2h)", role:"오후책임교사", hours:2, part:"afternoon", type:"eveningManager"}
+{key:"a1", room:"햇빛", time:"18:00~19:00<br>(1h)", role:"영아 오후당직", hours:1, part:"afternoon", type:"evening"},
+{key:"a2", room:"예빛", time:"18:00~20:00<br>(2h)", role:"오후책임교사", hours:2, part:"afternoon", type:"eveningManager"}
 ];
 
 window.onload = async function(){
@@ -215,8 +233,21 @@ window.onload = async function(){
 async function saveAppData(key, value){
   const { error } = await supabaseClient
     .from("app_data")
-    .upsert({ id:key, data:value, updated_at:new Date().toISOString() });
-  if(error) console.error(error);
+    .upsert(
+      {
+        id:key,
+        data:value,
+        updated_at:new Date().toISOString()
+      },
+      { onConflict:"id" }
+    );
+
+  if(error){
+    console.error("Supabase 저장 오류:", error);
+    throw error;
+  }
+
+  return true;
 }
 
 async function loadAppData(key){
@@ -225,30 +256,55 @@ async function loadAppData(key){
     .select("*")
     .eq("id", key)
     .maybeSingle();
-  if(error) console.error(error);
+
+  if(error){
+    console.error("Supabase 불러오기 오류:", error);
+    throw error;
+  }
+
   return data ? data.data : null;
 }
 
 async function loadAllSharedData(){
-  const savedTeachers = await loadAppData("teachers");
-  const savedLeaves = await loadAppData("leaves");
-  const savedHolidays = await loadAppData("holidays");
-  const savedEventExclusions = await loadAppData("eventExclusions");
-  const saved = await loadAppData("savedSchedules");
-  const counts = await loadAppData("eveningManagerCounts");
+  try{
+    const [
+      savedTeachers,
+      savedLeaves,
+      savedHolidays,
+      savedEventExclusions,
+      saved,
+      counts
+    ] = await Promise.all([
+      loadAppData("teachers"),
+      loadAppData("leaves"),
+      loadAppData("holidays"),
+      loadAppData("eventExclusions"),
+      loadAppData("savedSchedules"),
+      loadAppData("eveningManagerCounts")
+    ]);
 
-  teacherInput.value = savedTeachers || DEFAULT_TEACHERS;
-  leaves = savedLeaves || [];
-  holidays = savedHolidays || [];
-  eventExclusions = savedEventExclusions || [];
-  savedSchedules = saved || {};
-  eveningManagerCounts = counts || {};
+    teacherInput.value = savedTeachers || DEFAULT_TEACHERS;
+    leaves = savedLeaves || [];
+    holidays = savedHolidays || [];
+    eventExclusions = savedEventExclusions || [];
+    savedSchedules = saved || {};
+    eveningManagerCounts = counts || {};
 
-  updateTeacherSelect();
-  renderLeaves();
-  renderHolidays();
-  renderEventExclusions();
-  renderSavedScheduleList();
+    updateTeacherSelect();
+    renderLeaves();
+    renderHolidays();
+    renderEventExclusions();
+    renderSavedScheduleList();
+  }catch(error){
+    console.error(error);
+    teacherInput.value = DEFAULT_TEACHERS;
+    updateTeacherSelect();
+    renderLeaves();
+    renderHolidays();
+    renderEventExclusions();
+    renderSavedScheduleList();
+    alert("공용 데이터를 불러오지 못했습니다. 인터넷 연결 또는 Supabase 설정을 확인해 주세요.");
+  }
 }
 
 function toggleTeacherBox(){
@@ -508,8 +564,7 @@ function chooseTeacher(teachers, slot, dateStr){
     if(slot.type==="flex" && t.flexCount >= 3) return false;
 
     if(slot.type==="evening" && t.eveningManagerCountThisMonth > 0) return false;
-    if(slot.type==="eveningManager" && t.eveningManagerCountThisMonth >= 1) return false;
-    
+
     if(slot.type==="flex" && leaveRooms.includes(t.room)) return false;
 
     if(slot.type==="early7" || slot.type==="morningManager"){
@@ -523,18 +578,19 @@ function chooseTeacher(teachers, slot, dateStr){
   });
 
   if(candidates.length===0){
-  candidates = teachers.filter(t=>{
-    if(unavailable.includes(t.name)) return false;
-    if(eventUnavailable.includes(t.name)) return false;
-    if(t.assignedDates.includes(dateStr)) return false;
+    candidates = teachers.filter(t=>{
+      if(unavailable.includes(t.name)) return false;
+      if(eventUnavailable.includes(t.name)) return false;
+      if(t.assignedDates.includes(dateStr)) return false;
 
-    if(slot.type==="eveningManager" && t.eveningManagerCountThisMonth >= 1) return false;
-    if(slot.type==="evening" && t.eveningManagerCountThisMonth > 0) return false;
+      if(slot.type==="eveningManager" && t.eveningManagerCountThisMonth >= 1) return false;
+      if(slot.type==="evening" && t.eveningManagerCountThisMonth > 0) return false;
+      if(slot.type==="flex" && t.flexCount >= 3) return false;
 
-    return true;
-  });
-}
-  
+      return true;
+    });
+  }
+
   if(candidates.length===0) return null;
 
   if(slot.type==="flex"){
@@ -704,21 +760,23 @@ function renderSchedule(rows){
 <tr>
 <th colspan="9">영아</th>
 <th colspan="7">유아</th>
-<th colspan="2">통합</th>
+<th>영아</th>
+<th>유아</th>
 </tr>
 <tr>
-<th colspan="5">만1세</th>
-<th colspan="4">만2세</th>
+<th colspan="4">만1세</th>
+<th colspan="5">만2세</th>
 <th colspan="3">만3세</th>
 <th colspan="2">만4세</th>
 <th colspan="2">만5세</th>
-<th colspan="2">통합</th>
+<th>햇빛</th>
+<th>예빛</th>
 </tr>
 <tr>
-<th colspan="2">햇빛</th>
-<th colspan="3">달빛</th>
+<th colspan="3">햇빛</th>
+<th>달빛</th>
 <th colspan="3">봄빛</th>
-<th>예빛</th>
+<th colspan="2">예빛</th>
 <th colspan="3">새빛</th>
 <th>꽃빛</th>
 <th>윤빛</th>
@@ -815,17 +873,60 @@ function renderStats(teachers){
 
 async function saveCurrentSchedule(){
   const month = monthInput.value;
-  if(!month || currentSchedule.length===0) return alert("먼저 당직표를 생성해줘.");
 
-  savedSchedules[month] = {
-    schedule:currentSchedule,
-    stats:currentStats,
-    savedAt:new Date().toLocaleString()
-  };
+  if(!month || currentSchedule.length===0){
+    return alert("먼저 당직표를 생성해줘.");
+  }
 
-  await saveAppData("savedSchedules", savedSchedules);
-  renderSavedScheduleList();
-  alert(`${month} 당직표가 저장되었습니다.`);
+  try{
+    const latestSchedules = await loadAppData("savedSchedules") || {};
+
+    latestSchedules[month] = {
+      schedule:currentSchedule,
+      stats:currentStats,
+      savedAt:new Date().toISOString()
+    };
+
+    await saveAppData("savedSchedules", latestSchedules);
+
+    const verifiedSchedules = await loadAppData("savedSchedules") || {};
+    if(!verifiedSchedules[month]){
+      throw new Error("저장 후 검증 실패");
+    }
+
+    savedSchedules = verifiedSchedules;
+    renderSavedScheduleList();
+    savedScheduleSelect.value = month;
+
+    alert(`${month} 당직표가 공용 서버에 저장되었습니다.`);
+  }catch(error){
+    console.error("당직표 저장 실패:", error);
+    alert("당직표가 서버에 저장되지 않았습니다. 인터넷 연결 또는 Supabase 권한을 확인해 주세요.");
+  }
+}
+
+async function refreshSavedSchedules(showMessage=false){
+  try{
+    const selectedMonth = savedScheduleSelect.value;
+    const latest = await loadAppData("savedSchedules");
+
+    savedSchedules = latest || {};
+    renderSavedScheduleList();
+
+    if(selectedMonth && savedSchedules[selectedMonth]){
+      savedScheduleSelect.value = selectedMonth;
+    }
+
+    if(showMessage){
+      const count = Object.keys(savedSchedules).length;
+      alert(`저장된 당직표 목록을 새로고침했습니다. 총 ${count}개입니다.`);
+    }
+  }catch(error){
+    console.error("저장목록 새로고침 실패:", error);
+    if(showMessage){
+      alert("저장된 당직표 목록을 불러오지 못했습니다.");
+    }
+  }
 }
 
 function renderSavedScheduleList(){
@@ -838,16 +939,30 @@ function renderSavedScheduleList(){
   });
 }
 
-function loadSavedSchedule(){
+async function loadSavedSchedule(){
   const month = savedScheduleSelect.value;
   if(!month) return alert("저장된 당직표가 없습니다.");
 
-  currentSchedule = savedSchedules[month].schedule;
-  currentStats = savedSchedules[month].stats;
+  try{
+    const latest = await loadAppData("savedSchedules") || {};
+    savedSchedules = latest;
+    renderSavedScheduleList();
 
-  monthInput.value = month;
-  renderSchedule(currentSchedule);
-  renderStats(currentStats);
+    if(!savedSchedules[month]){
+      return alert("선택한 저장본이 서버에 없습니다. 목록을 다시 확인해 주세요.");
+    }
+
+    savedScheduleSelect.value = month;
+    currentSchedule = savedSchedules[month].schedule;
+    currentStats = savedSchedules[month].stats;
+
+    monthInput.value = month;
+    renderSchedule(currentSchedule);
+    renderStats(currentStats);
+  }catch(error){
+    console.error("저장본 불러오기 실패:", error);
+    alert("저장된 당직표를 불러오지 못했습니다.");
+  }
 }
 
 async function deleteSavedSchedule(){
@@ -855,9 +970,20 @@ async function deleteSavedSchedule(){
   if(!month) return;
   if(!confirm(`${month} 저장본을 삭제할까요?`)) return;
 
-  delete savedSchedules[month];
-  await saveAppData("savedSchedules", savedSchedules);
-  renderSavedScheduleList();
+  try{
+    const latest = await loadAppData("savedSchedules") || {};
+    delete latest[month];
+
+    await saveAppData("savedSchedules", latest);
+
+    savedSchedules = await loadAppData("savedSchedules") || {};
+    renderSavedScheduleList();
+
+    alert(`${month} 저장본을 삭제했습니다.`);
+  }catch(error){
+    console.error("저장본 삭제 실패:", error);
+    alert("저장본을 삭제하지 못했습니다.");
+  }
 }
 
 function downloadTableAsExcel(tableId, filename){

@@ -37,6 +37,13 @@ th{background:#e8eef9}
 .slot-afternoon{background:#fff!important}
 
 #scheduleTable td{height:28px}
+.connection-status{
+  margin-bottom:12px;padding:10px 14px;border-radius:8px;
+  font-size:13px;font-weight:bold;background:#fff4cc;color:#7a5a00;
+  border:1px solid #f0d77a
+}
+.connection-status.online{background:#e7f7eb;color:#23743a;border-color:#a9dfb6}
+.connection-status.offline{background:#fdecec;color:#b02a37;border-color:#f2b8bf}
 
 .leave-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:10px}
 .teacher-check-grid{
@@ -98,6 +105,8 @@ line-height:1.5;
 <div>문의사항: 김혜인 교사</div>
 </div>
 </div>
+
+<div id="connectionStatus" class="connection-status">공용 서버 연결 확인 중...</div>
 
 <div class="box">
 <h2>1. 월 선택</h2>
@@ -176,7 +185,35 @@ line-height:1.5;
 <script>
 const SUPABASE_URL = "https://ndvysrpxdhlidmowvnpm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FEEilnS9OZv_7R6jTTCe8g_Cc6GabhA";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+async function fetchWithRetry(input, init={}, retries=2){
+  let lastError;
+
+  for(let attempt=0; attempt<=retries; attempt++){
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 12000);
+
+    try{
+      const response = await fetch(input, {...init, signal:controller.signal});
+      clearTimeout(timeout);
+      return response;
+    }catch(error){
+      clearTimeout(timeout);
+      lastError = error;
+
+      if(attempt < retries){
+        await new Promise(resolve=>setTimeout(resolve, 700 * (attempt + 1)));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+const supabaseClient = supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  {global:{fetch:(input, init)=>fetchWithRetry(input, init, 2)}}
+);
 
 const DEFAULT_TEACHERS = `만1세, 햇빛반, 신지영
 만1세, 햇빛반, 신의주
@@ -214,8 +251,7 @@ const DEFAULT_TEACHERS = `만1세, 햇빛반, 신지영
 만4세, 꽃빛반, 김수지
 만4세, 꽃빛반, 박지민, 신입
 만5세, 들빛반, 나혜인
-만5세, 솔빛반, 강수진
-만5세, 솔빛반, 유금빈`;
+만5세, 솔빛반, 강수진`;
 
 let leaves = [];
 let holidays = [];
@@ -224,6 +260,38 @@ let currentSchedule = [];
 let currentStats = [];
 let savedSchedules = {};
 let eveningManagerCounts = {};
+
+const LOCAL_CACHE_KEY = "tangjeong_duty_app_cache_v2";
+
+function setConnectionStatus(message, state=""){
+  const el = document.getElementById("connectionStatus");
+  if(!el) return;
+  el.textContent = message;
+  el.className = "connection-status";
+  if(state) el.classList.add(state);
+}
+
+function saveLocalCache(){
+  try{
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
+      teachers:teacherInput.value || DEFAULT_TEACHERS,
+      leaves, holidays, eventExclusions, savedSchedules, eveningManagerCounts,
+      cachedAt:new Date().toISOString()
+    }));
+  }catch(error){
+    console.warn("로컬 캐시 저장 실패:", error);
+  }
+}
+
+function loadLocalCache(){
+  try{
+    const raw = localStorage.getItem(LOCAL_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(error){
+    console.warn("로컬 캐시 불러오기 실패:", error);
+    return null;
+  }
+}
 
 const slots = [
 {key:"m1", room:"햇빛", time:"07:00~09:00<br>(2h)", role:"1층 시건", hours:2, part:"morning", type:"early7"},
@@ -261,19 +329,18 @@ async function saveAppData(key, value){
   const { error } = await supabaseClient
     .from("app_data")
     .upsert(
-      {
-        id:key,
-        data:value,
-        updated_at:new Date().toISOString()
-      },
-      { onConflict:"id" }
+      {id:key, data:value, updated_at:new Date().toISOString()},
+      {onConflict:"id"}
     );
 
   if(error){
+    setConnectionStatus("공용 서버 저장 실패 · 현재 기기에만 임시 보관됩니다.", "offline");
     console.error("Supabase 저장 오류:", error);
     throw error;
   }
 
+  saveLocalCache();
+  setConnectionStatus("공용 서버 연결됨 · 다른 컴퓨터와 데이터가 공유됩니다.", "online");
   return true;
 }
 
@@ -293,25 +360,21 @@ async function loadAppData(key){
 }
 
 async function loadAllSharedData(){
+  setConnectionStatus("공용 서버 연결 확인 중...");
+
   try{
     const { data, error } = await supabaseClient
       .from("app_data")
       .select("id,data")
       .in("id", [
-        "teachers",
-        "leaves",
-        "holidays",
-        "eventExclusions",
-        "savedSchedules",
-        "eveningManagerCounts"
+        "teachers","leaves","holidays","eventExclusions",
+        "savedSchedules","eveningManagerCounts"
       ]);
 
     if(error) throw error;
 
     const map = {};
-    (data || []).forEach(row=>{
-      map[row.id] = row.data;
-    });
+    (data || []).forEach(row=>{ map[row.id] = row.data; });
 
     teacherInput.value = map.teachers || DEFAULT_TEACHERS;
     leaves = map.leaves || [];
@@ -326,15 +389,19 @@ async function loadAllSharedData(){
     renderHolidays();
     renderEventExclusions();
     renderSavedScheduleList();
+
+    saveLocalCache();
+    setConnectionStatus("공용 서버 연결됨 · 다른 컴퓨터와 데이터가 공유됩니다.", "online");
   }catch(error){
     console.error("공용 데이터 불러오기 실패:", error);
+    const cached = loadLocalCache();
 
-    teacherInput.value = DEFAULT_TEACHERS;
-    leaves = [];
-    holidays = [];
-    eventExclusions = [];
-    savedSchedules = {};
-    eveningManagerCounts = {};
+    teacherInput.value = cached?.teachers || DEFAULT_TEACHERS;
+    leaves = cached?.leaves || [];
+    holidays = cached?.holidays || [];
+    eventExclusions = cached?.eventExclusions || [];
+    savedSchedules = cached?.savedSchedules || {};
+    eveningManagerCounts = cached?.eveningManagerCounts || {};
 
     updateTeacherSelect();
     renderLeaveTeacherChecks();
@@ -343,8 +410,10 @@ async function loadAllSharedData(){
     renderEventExclusions();
     renderSavedScheduleList();
 
-    const detail = error && error.message ? `\n오류: ${error.message}` : "";
-    alert("공용 데이터를 불러오지 못했습니다. 인터넷 연결 또는 Supabase 설정을 확인해 주세요." + detail);
+    setConnectionStatus(
+      "공용 서버 연결 실패 · 현재 기기 임시 데이터로 실행 중입니다. 인터넷 연결 후 새로고침해 주세요.",
+      "offline"
+    );
   }
 }
 
@@ -485,6 +554,7 @@ function addMultipleLeaves(){
   );
 
   renderLeaves();
+  saveLocalCache();
   selectAllLeaveTeachers(false);
 
   setLeaveSaveStatus(
@@ -522,6 +592,7 @@ async function saveLeavesToServer(){
 function removeLeave(i){
   leaves.splice(i,1);
   renderLeaves();
+  saveLocalCache();
   setLeaveSaveStatus("연차 목록이 변경되었습니다. 서버 저장 버튼을 눌러주세요.", "saving");
 }
 
@@ -529,6 +600,7 @@ function clearLeaves(){
   if(!confirm("연차를 모두 삭제할까요?")) return;
   leaves=[];
   renderLeaves();
+  saveLocalCache();
   setLeaveSaveStatus("연차 목록이 모두 삭제되었습니다. 서버 저장 버튼을 눌러야 공용 데이터에 반영됩니다.", "saving");
 }
 

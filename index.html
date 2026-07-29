@@ -106,7 +106,7 @@ line-height:1.5;
 </div>
 </div>
 
-<div id="connectionStatus" class="connection-status">공용 서버 연결 확인 중...</div>
+<div id="connectionStatus" class="connection-status">화면 사용 가능 · 공용 서버 연결 확인 중...</div>
 
 <div class="box">
 <h2>1. 월 선택</h2>
@@ -185,34 +185,24 @@ line-height:1.5;
 <script>
 const SUPABASE_URL = "https://ndvysrpxdhlidmowvnpm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FEEilnS9OZv_7R6jTTCe8g_Cc6GabhA";
-async function fetchWithRetry(input, init={}, retries=2){
-  let lastError;
+async function fetchWithRetry(input, init={}){
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 5000);
 
-  for(let attempt=0; attempt<=retries; attempt++){
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 12000);
-
-    try{
-      const response = await fetch(input, {...init, signal:controller.signal});
-      clearTimeout(timeout);
-      return response;
-    }catch(error){
-      clearTimeout(timeout);
-      lastError = error;
-
-      if(attempt < retries){
-        await new Promise(resolve=>setTimeout(resolve, 700 * (attempt + 1)));
-      }
-    }
+  try{
+    return await fetch(input, {
+      ...init,
+      signal:controller.signal
+    });
+  }finally{
+    clearTimeout(timeout);
   }
-
-  throw lastError;
 }
 
 const supabaseClient = supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY,
-  {global:{fetch:(input, init)=>fetchWithRetry(input, init, 2)}}
+  {global:{fetch:(input, init)=>fetchWithRetry(input, init)}}
 );
 
 const DEFAULT_TEACHERS = `만1세, 햇빛반, 신지영
@@ -321,9 +311,9 @@ const slots = [
 {key:"a2", room:"예빛", time:"18:00~20:00<br>(2h)", role:"오후책임교사", hours:2, part:"afternoon", type:"eveningManager"}
 ];
 
-window.onload = async function(){
-  await loadAllSharedData();
-};
+window.addEventListener("DOMContentLoaded", ()=>{
+  loadAllSharedData();
+});
 
 async function saveAppData(key, value){
   const { error } = await supabaseClient
@@ -360,7 +350,23 @@ async function loadAppData(key){
 }
 
 async function loadAllSharedData(){
-  setConnectionStatus("공용 서버 연결 확인 중...");
+  const cached = loadLocalCache();
+
+  teacherInput.value = cached?.teachers || DEFAULT_TEACHERS;
+  leaves = cached?.leaves || [];
+  holidays = cached?.holidays || [];
+  eventExclusions = cached?.eventExclusions || [];
+  savedSchedules = cached?.savedSchedules || {};
+  eveningManagerCounts = cached?.eveningManagerCounts || {};
+
+  updateTeacherSelect();
+  renderLeaveTeacherChecks();
+  renderLeaves();
+  renderHolidays();
+  renderEventExclusions();
+  renderSavedScheduleList();
+
+  setConnectionStatus("화면 사용 가능 · 공용 서버 연결 확인 중...");
 
   try{
     const { data, error } = await supabaseClient
@@ -374,14 +380,16 @@ async function loadAllSharedData(){
     if(error) throw error;
 
     const map = {};
-    (data || []).forEach(row=>{ map[row.id] = row.data; });
+    (data || []).forEach(row=>{
+      map[row.id] = row.data;
+    });
 
-    teacherInput.value = map.teachers || DEFAULT_TEACHERS;
-    leaves = map.leaves || [];
-    holidays = map.holidays || [];
-    eventExclusions = map.eventExclusions || [];
-    savedSchedules = map.savedSchedules || {};
-    eveningManagerCounts = map.eveningManagerCounts || {};
+    teacherInput.value = map.teachers || teacherInput.value || DEFAULT_TEACHERS;
+    leaves = map.leaves || leaves;
+    holidays = map.holidays || holidays;
+    eventExclusions = map.eventExclusions || eventExclusions;
+    savedSchedules = map.savedSchedules || savedSchedules;
+    eveningManagerCounts = map.eveningManagerCounts || eveningManagerCounts;
 
     updateTeacherSelect();
     renderLeaveTeacherChecks();
@@ -394,24 +402,14 @@ async function loadAllSharedData(){
     setConnectionStatus("공용 서버 연결됨 · 다른 컴퓨터와 데이터가 공유됩니다.", "online");
   }catch(error){
     console.error("공용 데이터 불러오기 실패:", error);
-    const cached = loadLocalCache();
 
-    teacherInput.value = cached?.teachers || DEFAULT_TEACHERS;
-    leaves = cached?.leaves || [];
-    holidays = cached?.holidays || [];
-    eventExclusions = cached?.eventExclusions || [];
-    savedSchedules = cached?.savedSchedules || {};
-    eveningManagerCounts = cached?.eveningManagerCounts || {};
-
-    updateTeacherSelect();
-    renderLeaveTeacherChecks();
-    renderLeaves();
-    renderHolidays();
-    renderEventExclusions();
-    renderSavedScheduleList();
+    const message =
+      error?.name === "AbortError"
+        ? "공용 서버 응답이 늦어 현재 기기 데이터로 실행 중입니다."
+        : "공용 서버 연결 실패 · 현재 기기 데이터로 실행 중입니다.";
 
     setConnectionStatus(
-      "공용 서버 연결 실패 · 현재 기기 임시 데이터로 실행 중입니다. 인터넷 연결 후 새로고침해 주세요.",
+      message + " 필요할 때 페이지를 새로고침하거나 저장목록 새로고침을 눌러주세요.",
       "offline"
     );
   }
